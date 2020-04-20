@@ -20,7 +20,7 @@ impl Database {
     }
 
     // TODO: Can this be more generic?
-    pub fn store(&self, object: BoxObject) {
+    pub fn store(&self, object: BoxObject) -> Result<()> {
         let object_type = object.object_type();
         let object_bytes = object.to_bytes();
         let len_tag = format!("{}", object_bytes.len());
@@ -28,13 +28,13 @@ impl Database {
         let mut serialized =
             Vec::with_capacity(object_type.len() + object_bytes.len() + len_tag.len() + 2);
         serialized.extend_from_slice(object_type.as_ref());
-        serialized.push(' ' as u8);
+        serialized.push(b' ');
         serialized.extend_from_slice(len_tag.as_ref());
-        serialized.push(0u8);
+        serialized.push(b'\0');
         serialized.extend_from_slice(&object_bytes);
 
         let oid = object.oid();
-        self.write_object(&oid, &serialized);
+        self.write_object(&oid, &serialized)?;
     }
 
     fn write_object(&self, oid: &str, content: &[u8]) -> Result<()> {
