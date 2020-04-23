@@ -130,6 +130,7 @@ dependencies = [
  "maplit",
  "rand 0.7.3",
  "rust-crypto",
+ "rustc-serialize",
  "structopt",
 ]
 

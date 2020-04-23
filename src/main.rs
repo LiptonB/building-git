@@ -6,8 +6,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
-use database::{Blob, Database};
-use workspace::Workspace;
+use database::*;
+use workspace::*;
 
 #[derive(StructOpt, Debug)]
 enum Opt {
@@ -39,11 +39,17 @@ fn commit() -> Result<()> {
     let workspace = Workspace::new(&root_path);
     let database = Database::new(&db_path);
 
+    let mut entries = Vec::new();
     for file in workspace.list_files()? {
         let data = file.read()?;
-        let blob = Box::new(Blob::new(data));
-        database.store(blob);
+        let blob = Blob::new(data);
+        database.store(&blob)?;
+        entries.push(TreeEntry::new(file.rel_path(), &blob.oid()));
     }
+
+    let tree = Tree::new(&entries);
+    database.store(&tree)?;
+    println!("tree: {}", tree.oid());
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use maplit::hashset;
-use std::fs::{self, DirEntry};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -54,6 +54,10 @@ impl Workspace {
 impl WorkspacePath<'_> {
     fn path(&self) -> PathBuf {
         self.workspace.root.join(&self.rel_path)
+    }
+
+    pub fn rel_path(&self) -> &PathBuf {
+        &self.rel_path
     }
 
     pub fn read(&self) -> Result<Vec<u8>> {

@@ -2,11 +2,12 @@ mod objects;
 
 use anyhow::{bail, Result};
 use flate2::{write::ZlibEncoder, Compression};
-pub use objects::*;
 use rand::prelude::*;
 use std::fs::{create_dir_all, rename, File, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
+
+pub use objects::*;
 
 pub struct Database {
     root: PathBuf,
@@ -19,8 +20,7 @@ impl Database {
         }
     }
 
-    // TODO: Can this be more generic?
-    pub fn store(&self, object: BoxObject) -> Result<()> {
+    pub fn store<O: Object>(&self, object: &O) -> Result<()> {
         let object_type = object.object_type();
         let object_bytes = object.to_bytes();
         let len_tag = format!("{}", object_bytes.len());
@@ -35,6 +35,8 @@ impl Database {
 
         let oid = object.oid();
         self.write_object(&oid, &serialized)?;
+
+        Ok(())
     }
 
     fn write_object(&self, oid: &str, content: &[u8]) -> Result<()> {
@@ -47,6 +49,7 @@ impl Database {
         let mut encoder = ZlibEncoder::new(&tempfile, Compression::fast());
         encoder.write_all(content)?;
         rename(tempfile_name, object_path)?;
+
         Ok(())
     }
 
@@ -71,6 +74,7 @@ impl Database {
                 }
             }
         };
+
         Ok((file, path))
     }
 }
