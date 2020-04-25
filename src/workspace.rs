@@ -64,4 +64,9 @@ impl WorkspacePath<'_> {
         let data = fs::read(self.path())?;
         Ok(data)
     }
+
+    pub fn stat(&self) -> Result<fs::Metadata> {
+        let metadata = fs::metadata(self.path())?;
+        Ok(metadata)
+    }
 }

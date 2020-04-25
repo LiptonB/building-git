@@ -49,7 +49,9 @@ fn commit() -> Result<()> {
         let data = file.read()?;
         let blob = Blob::new(data);
         database.store(&blob)?;
-        entries.push(TreeEntry::new(file.rel_path(), &blob.oid()));
+
+        let metadata = file.stat()?;
+        entries.push(TreeEntry::new(file.rel_path(), &blob.oid(), &metadata));
     }
 
     let tree = Tree::new(&entries);

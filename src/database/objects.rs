@@ -1,4 +1,6 @@
 use std::fmt;
+use std::fs::Metadata;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use crypto::{digest::Digest, sha1::Sha1};
@@ -65,7 +67,6 @@ impl Object for Tree {
     fn to_bytes(&self) -> Vec<u8> {
         use rustc_serialize::hex::FromHex;
 
-        const MODE: &[u8] = b"100644";
         self.entries
             .iter()
             .map(|entry| {
@@ -74,7 +75,8 @@ impl Object for Tree {
                     .from_hex()
                     .expect("Hash is not a valid hex string");
                 let path = entry.rel_path.to_string_lossy().as_bytes().to_owned();
-                let parts = vec![MODE.to_owned(), b" ".to_vec(), path, b"\0".to_vec(), oid];
+                let mode = entry.mode().as_bytes().to_owned();
+                let parts = vec![mode, b" ".to_vec(), path, b"\0".to_vec(), oid];
                 parts
             }) // Iterator<Vec<Vec<u8>>>
             .flatten() // Iterator<Vec<u8>>
@@ -122,7 +124,7 @@ committer {}
             self.tree, self.author, self.author, self.message
         )
         .as_bytes()
-        .to_vec()
+        .to_owned()
     }
 }
 
@@ -130,13 +132,28 @@ committer {}
 pub struct TreeEntry {
     rel_path: PathBuf,
     oid: String,
+    mode: u32,
 }
 
 impl TreeEntry {
-    pub fn new<P: AsRef<Path>>(rel_path: P, oid: &str) -> Self {
+    const REGULAR_MODE: &'static str = "100644";
+    const EXECUTABLE_MODE: &'static str = "100755";
+
+    pub fn new<P: AsRef<Path>>(rel_path: P, oid: &str, metadata: &Metadata) -> Self {
         Self {
             rel_path: rel_path.as_ref().to_owned(),
             oid: oid.to_owned(),
+            mode: metadata.mode(),
+        }
+    }
+
+    pub fn mode(&self) -> &str {
+        let is_executable = self.mode & 0o100 != 0;
+
+        if is_executable {
+            Self::EXECUTABLE_MODE
+        } else {
+            Self::REGULAR_MODE
         }
     }
 }
