@@ -1,10 +1,14 @@
 mod database;
 mod workspace;
 
-use anyhow::{Context, Result};
+use std::env;
 use std::fs;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+
+use anyhow::{anyhow, Context, Result};
 use structopt::StructOpt;
+use time::OffsetDateTime;
 
 use database::*;
 use workspace::*;
@@ -34,7 +38,8 @@ fn init<P: AsRef<Path>>(root: P) -> Result<()> {
 
 fn commit() -> Result<()> {
     let root_path = fs::canonicalize(".")?;
-    let db_path = root_path.join(".git").join("objects");
+    let git_path = root_path.join(".git");
+    let db_path = git_path.join("objects");
 
     let workspace = Workspace::new(&root_path);
     let database = Database::new(&db_path);
@@ -49,7 +54,23 @@ fn commit() -> Result<()> {
 
     let tree = Tree::new(&entries);
     database.store(&tree)?;
-    println!("tree: {}", tree.oid());
+
+    let name = env::var("GIT_AUTHOR_NAME").context("GIT_AUTHOR_NAME")?;
+    let email = env::var("GIT_AUTHOR_EMAIL").context("GIT_AUTHOR_EMAIL")?;
+    let author = Author::new(&name, &email, OffsetDateTime::now_local());
+
+    let mut message = String::new();
+    io::stdin().read_to_string(&mut message)?;
+
+    let commit = Commit::new(&tree.oid(), author, &message);
+    database.store(&commit)?;
+
+    let first_line = message.lines().next().ok_or(anyhow!("Empty message"))?;
+    let commit_oid = commit.oid();
+
+    fs::write(git_path.join("HEAD"), &commit_oid)?;
+
+    println!("[(root-commit) {}] {}", commit_oid, first_line);
 
     Ok(())
 }

@@ -1,11 +1,12 @@
 mod objects;
 
-use anyhow::{bail, Result};
-use flate2::{write::ZlibEncoder, Compression};
-use rand::prelude::*;
 use std::fs::{create_dir_all, rename, File, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
+
+use anyhow::{bail, Result};
+use flate2::{write::ZlibEncoder, Compression};
+use rand::prelude::*;
 
 pub use objects::*;
 

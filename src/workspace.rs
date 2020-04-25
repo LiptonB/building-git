@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
-use maplit::hashset;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use anyhow::{anyhow, Result};
 
 #[derive(Debug)]
 pub struct Workspace {
@@ -33,13 +33,13 @@ impl Workspace {
     }
 
     pub fn list_files(&self) -> Result<Vec<WorkspacePath>> {
-        let ignore = hashset! {".git", ".swp", ".un~"};
+        const IGNORE: &[&str] = &[".git", ".swp", ".un~"];
         let mut results = Vec::new();
         for entry in self.root.read_dir()? {
             let entry = entry?;
             let name = entry.file_name();
             let name = name.to_str().ok_or(anyhow!("Invalid filename found"))?;
-            if ignore.iter().any(|ig| name.contains(ig)) {
+            if IGNORE.iter().any(|ig| name.contains(ig)) {
                 continue;
             }
             if !entry.file_type()?.is_file() {
