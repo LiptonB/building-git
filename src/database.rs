@@ -22,25 +22,9 @@ impl Database {
     }
 
     pub fn store<O: Object>(&self, object: &O) -> Result<()> {
-        let object_type = object.object_type();
-        let object_bytes = object.to_bytes();
-        let len_tag = format!("{}", object_bytes.len());
-
-        let mut serialized =
-            Vec::with_capacity(object_type.len() + object_bytes.len() + len_tag.len() + 2);
-        serialized.extend_from_slice(object_type.as_ref());
-        serialized.push(b' ');
-        serialized.extend_from_slice(len_tag.as_ref());
-        serialized.push(b'\0');
-        serialized.extend_from_slice(&object_bytes);
-
         let oid = object.oid();
-        self.write_object(&oid, &serialized)?;
+        let content = object.to_bytes();
 
-        Ok(())
-    }
-
-    fn write_object(&self, oid: &str, content: &[u8]) -> Result<()> {
         let object_path = self
             .root
             .join(Path::new(&oid[0..2]))
@@ -48,7 +32,7 @@ impl Database {
         let dir = object_path.parent().expect("Path error");
         let (tempfile, tempfile_name) = self.open_tempfile(&dir)?;
         let mut encoder = ZlibEncoder::new(&tempfile, Compression::fast());
-        encoder.write_all(content)?;
+        encoder.write_all(&content)?;
         rename(tempfile_name, object_path)?;
 
         Ok(())

@@ -8,8 +8,30 @@ use time::OffsetDateTime;
 
 pub trait Object {
     fn object_type(&self) -> &str;
-    fn oid(&self) -> String;
-    fn to_bytes(&self) -> Vec<u8>;
+    fn content(&self) -> Vec<u8>;
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let object_type = self.object_type();
+        let content = self.content();
+        let len_tag = content.len().to_string();
+
+        let mut serialized =
+            Vec::with_capacity(object_type.len() + len_tag.len() + content.len() + 2);
+        serialized.extend_from_slice(object_type.as_ref());
+        serialized.push(b' ');
+        serialized.extend_from_slice(len_tag.as_ref());
+        serialized.push(b'\0');
+        serialized.extend_from_slice(&content);
+
+        serialized
+    }
+
+    fn oid(&self) -> String {
+        let mut hasher = Sha1::new();
+        // TODO: caching?
+        hasher.input(&self.to_bytes());
+        hasher.result_str()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -28,13 +50,7 @@ impl Object for Blob {
         "blob"
     }
 
-    fn oid(&self) -> String {
-        let mut hasher = Sha1::new();
-        hasher.input(&self.data);
-        hasher.result_str()
-    }
-
-    fn to_bytes(&self) -> Vec<u8> {
+    fn content(&self) -> Vec<u8> {
         self.data.clone()
     }
 }
@@ -57,14 +73,7 @@ impl Object for Tree {
         "tree"
     }
 
-    fn oid(&self) -> String {
-        let mut hasher = Sha1::new();
-        // TODO: caching?
-        hasher.input(&self.to_bytes());
-        hasher.result_str()
-    }
-
-    fn to_bytes(&self) -> Vec<u8> {
+    fn content(&self) -> Vec<u8> {
         use rustc_serialize::hex::FromHex;
 
         self.entries
@@ -107,14 +116,7 @@ impl Object for Commit {
         "commit"
     }
 
-    fn oid(&self) -> String {
-        let mut hasher = Sha1::new();
-        // TODO: caching?
-        hasher.input(&self.to_bytes());
-        hasher.result_str()
-    }
-
-    fn to_bytes(&self) -> Vec<u8> {
+    fn content(&self) -> Vec<u8> {
         format!(
             "tree {}
 author {}
