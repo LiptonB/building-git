@@ -1,5 +1,5 @@
-mod database;
-mod workspace;
+pub mod database;
+pub mod workspace;
 
 use std::env;
 use std::fs;
@@ -46,16 +46,18 @@ fn commit() -> Result<()> {
 
     let mut entries = Vec::new();
     for file in workspace.list_files()? {
+        println!("Processing file: {:?}", file);
         let data = file.read()?;
         let blob = Blob::new(data);
         database.store(&blob)?;
 
         let metadata = file.stat()?;
-        entries.push(TreeEntry::new(file.rel_path(), &blob.oid(), &metadata));
+        entries.push(TreeFile::new(file.rel_path(), &blob.oid(), &metadata));
     }
 
-    let tree = Tree::new(&entries);
-    database.store(&tree)?;
+    let root = Tree::build(entries)?;
+    println!("Final tree: {:#?}", root);
+    root.traverse(&|tree| database.store(tree))?;
 
     let name = env::var("GIT_AUTHOR_NAME").context("GIT_AUTHOR_NAME")?;
     let email = env::var("GIT_AUTHOR_EMAIL").context("GIT_AUTHOR_EMAIL")?;
@@ -64,7 +66,7 @@ fn commit() -> Result<()> {
     let mut message = String::new();
     io::stdin().read_to_string(&mut message)?;
 
-    let commit = Commit::new(&tree.oid(), author, &message);
+    let commit = Commit::new(&root.oid(), author, &message);
     database.store(&commit)?;
 
     let first_line = message.lines().next().ok_or(anyhow!("Empty message"))?;
@@ -86,3 +88,13 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+/*
+fn main() {
+    let result = do_main();
+
+    if let Err(err) = result {
+
+    }
+}
+*/
