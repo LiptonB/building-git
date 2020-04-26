@@ -27,9 +27,10 @@ impl Database {
         }
     }
 
-    pub fn store<O: Object>(&self, object: &O) -> Result<()> {
+    pub fn store<O: Object>(&self, object: &mut O) -> Result<()> {
+        compute_oid(object);
         let oid = object.oid();
-        let content = object.to_bytes();
+        let content = to_bytes(object);
 
         let object_path = self
             .root

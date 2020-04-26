@@ -9,6 +9,7 @@ pub struct Commit {
     tree: String,
     author: Author,
     message: String,
+    oid: Option<String>,
 }
 
 impl Commit {
@@ -17,6 +18,7 @@ impl Commit {
             tree: tree.to_owned(),
             author,
             message: message.to_owned(),
+            oid: None,
         }
     }
 }
@@ -37,6 +39,15 @@ committer {}
         )
         .as_bytes()
         .to_owned()
+    }
+
+    fn set_oid(&mut self, oid: String) {
+        assert!(self.oid.is_none());
+        self.oid = Some(oid);
+    }
+
+    fn get_oid(&self) -> Option<&str> {
+        self.oid.as_deref()
     }
 }
 

@@ -47,14 +47,14 @@ fn commit() -> Result<()> {
     let mut entries = Vec::new();
     for file in workspace.list_files()? {
         let data = file.read()?;
-        let blob = Blob::new(data);
-        database.store(&blob)?;
+        let mut blob = Blob::new(data);
+        database.store(&mut blob)?;
 
         let metadata = file.stat()?;
-        entries.push(TreeFile::new(file.rel_path(), &blob.oid(), &metadata));
+        entries.push(TreeFile::new(file.rel_path(), blob.oid(), &metadata));
     }
 
-    let root = Tree::build(entries)?;
+    let mut root = Tree::build(entries)?;
     root.traverse(&|tree| database.store(tree))?;
 
     let name = env::var("GIT_AUTHOR_NAME").context("GIT_AUTHOR_NAME")?;
@@ -64,8 +64,8 @@ fn commit() -> Result<()> {
     let mut message = String::new();
     io::stdin().read_to_string(&mut message)?;
 
-    let commit = Commit::new(&root.oid(), author, &message);
-    database.store(&commit)?;
+    let mut commit = Commit::new(root.oid(), author, &message);
+    database.store(&mut commit)?;
 
     let first_line = message.lines().next().ok_or(anyhow!("Empty message"))?;
     let commit_oid = commit.oid();

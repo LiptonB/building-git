@@ -17,6 +17,7 @@ enum TreeEntry {
 pub struct Tree {
     entries: HashMap<String, TreeEntry>,
     key_order: Vec<String>,
+    oid: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,10 +30,10 @@ pub struct TreeFile {
 impl TreeEntry {
     const DIRECTORY_MODE: &'static str = "40000";
 
-    fn oid(&self) -> String {
+    fn oid(&self) -> &str {
         match self {
             TreeEntry::Tree(tree) => tree.oid(),
-            TreeEntry::File(file) => file.oid.clone(),
+            TreeEntry::File(file) => &file.oid,
         }
     }
 
@@ -49,6 +50,7 @@ impl Tree {
         Self {
             entries: HashMap::new(),
             key_order: Vec::new(),
+            oid: None,
         }
     }
 
@@ -102,9 +104,9 @@ impl Tree {
         Ok(())
     }
 
-    pub fn traverse(&self, callback: &dyn Fn(&Tree) -> Result<()>) -> Result<()> {
+    pub fn traverse(&mut self, callback: &dyn Fn(&mut Tree) -> Result<()>) -> Result<()> {
         for key in &self.key_order {
-            if let TreeEntry::Tree(ref tree) = self.entries[key] {
+            if let TreeEntry::Tree(ref mut tree) = self.entries.get_mut(key).unwrap() {
                 tree.traverse(callback)?;
             }
         }
@@ -142,6 +144,15 @@ impl Object for Tree {
             .flatten() // Iterator<Vec<u8>>
             .flatten() // Iterator<u8>
             .collect() // Vec<u8>
+    }
+
+    fn set_oid(&mut self, oid: String) {
+        assert!(self.oid.is_none());
+        self.oid = Some(oid);
+    }
+
+    fn get_oid(&self) -> Option<&str> {
+        self.oid.as_deref()
     }
 }
 
