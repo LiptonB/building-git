@@ -1,4 +1,7 @@
-mod objects;
+mod blob;
+mod commit;
+mod object;
+mod tree;
 
 use std::fs::{create_dir_all, rename, File, OpenOptions};
 use std::io::{ErrorKind, Write};
@@ -8,7 +11,10 @@ use anyhow::{bail, Result};
 use flate2::{write::ZlibEncoder, Compression};
 use rand::prelude::*;
 
-pub use objects::*;
+pub use blob::*;
+pub use commit::*;
+pub use object::*;
+pub use tree::*;
 
 pub struct Database {
     root: PathBuf,

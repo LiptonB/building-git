@@ -46,7 +46,6 @@ fn commit() -> Result<()> {
 
     let mut entries = Vec::new();
     for file in workspace.list_files()? {
-        println!("Processing file: {:?}", file);
         let data = file.read()?;
         let blob = Blob::new(data);
         database.store(&blob)?;
@@ -56,7 +55,6 @@ fn commit() -> Result<()> {
     }
 
     let root = Tree::build(entries)?;
-    println!("Final tree: {:#?}", root);
     root.traverse(&|tree| database.store(tree))?;
 
     let name = env::var("GIT_AUTHOR_NAME").context("GIT_AUTHOR_NAME")?;

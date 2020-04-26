@@ -1,63 +1,11 @@
 use std::collections::HashMap;
-use std::fmt;
 use std::fs::Metadata;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
-use crypto::{digest::Digest, sha1::Sha1};
-use time::OffsetDateTime;
 
-// TODO: would an enum make more sense since it seems like content is the only real function
-// needing to be overloaded?
-pub trait Object {
-    fn object_type(&self) -> &str;
-    fn content(&self) -> Vec<u8>;
-
-    fn to_bytes(&self) -> Vec<u8> {
-        let object_type = self.object_type();
-        let content = self.content();
-        let len_tag = content.len().to_string();
-
-        let mut serialized =
-            Vec::with_capacity(object_type.len() + len_tag.len() + content.len() + 2);
-        serialized.extend_from_slice(object_type.as_ref());
-        serialized.push(b' ');
-        serialized.extend_from_slice(len_tag.as_ref());
-        serialized.push(b'\0');
-        serialized.extend_from_slice(&content);
-
-        serialized
-    }
-
-    fn oid(&self) -> String {
-        let mut hasher = Sha1::new();
-        // TODO: caching?
-        hasher.input(&self.to_bytes());
-        hasher.result_str()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Blob {
-    data: Vec<u8>,
-}
-
-impl Blob {
-    pub fn new(data: Vec<u8>) -> Self {
-        Self { data }
-    }
-}
-
-impl Object for Blob {
-    fn object_type(&self) -> &str {
-        "blob"
-    }
-
-    fn content(&self) -> Vec<u8> {
-        self.data.clone()
-    }
-}
+use super::object::Object;
 
 #[derive(Debug, Clone)]
 enum TreeEntry {
@@ -114,11 +62,6 @@ impl Tree {
         let mut root = Self::new();
         for entry in entries {
             let ancestors = entry.ancestors();
-            println!(
-                "Ancestors of {} are {:?}",
-                entry.rel_path.display(),
-                ancestors
-            );
             root.add_entry(&ancestors, entry)?;
         }
 
@@ -136,17 +79,12 @@ impl Tree {
             self.key_order.push(name.clone());
             self.entries.insert(name, TreeEntry::File(entry));
         } else {
-            let first_parent = {
-                parents[0]
-                    .as_ref()
-                    .file_name()
-                    .ok_or(anyhow!(
-                        "Missing filename in {:?}",
-                        parents[parents.len() - 1].as_ref()
-                    ))?
-                    .to_string_lossy()
-                    .into_owned()
-            };
+            let first_parent = parents[0]
+                .as_ref()
+                .file_name()
+                .ok_or(anyhow!("Missing filename in {:?}", parents[0].as_ref()))?
+                .to_string_lossy()
+                .into_owned();
             if !self.entries.contains_key(&first_parent) {
                 self.key_order.push(first_parent.clone());
                 self.entries
@@ -244,71 +182,5 @@ impl TreeFile {
             }
         }
         ancestors
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Commit {
-    tree: String,
-    author: Author,
-    message: String,
-}
-
-impl Commit {
-    pub fn new(tree: &str, author: Author, message: &str) -> Self {
-        Self {
-            tree: tree.to_owned(),
-            author,
-            message: message.to_owned(),
-        }
-    }
-}
-
-impl Object for Commit {
-    fn object_type(&self) -> &str {
-        "commit"
-    }
-
-    fn content(&self) -> Vec<u8> {
-        format!(
-            "tree {}
-author {}
-committer {}
-
-{}",
-            self.tree, self.author, self.author, self.message
-        )
-        .as_bytes()
-        .to_owned()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Author {
-    name: String,
-    email: String,
-    timestamp: OffsetDateTime,
-}
-
-impl Author {
-    pub fn new(name: &str, email: &str, timestamp: OffsetDateTime) -> Self {
-        Self {
-            name: name.to_owned(),
-            email: email.to_owned(),
-            timestamp,
-        }
-    }
-}
-
-impl fmt::Display for Author {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} <{}> {} {}",
-            self.name,
-            self.email,
-            self.timestamp.timestamp(),
-            self.timestamp.offset().lazy_format("%z")
-        )
     }
 }
