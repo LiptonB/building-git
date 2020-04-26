@@ -5,6 +5,9 @@ use crypto::{digest::Digest, sha1::Sha1};
 pub trait Object {
     fn object_type(&self) -> &str;
     fn content(&self) -> Vec<u8>;
+
+    // TODO: I don't really like the duplication of implementing these - would prefer a distinct
+    // object for things with oids
     fn set_oid(&mut self, oid: String);
     fn get_oid(&self) -> Option<&str>;
 
@@ -34,6 +37,5 @@ pub fn compute_oid<O: Object>(object: &mut O) {
     let mut hasher = Sha1::new();
     hasher.input(&to_bytes(object));
     let oid = hasher.result_str();
-    println!("Computed oid of {}", oid);
     object.set_oid(oid.to_owned());
 }

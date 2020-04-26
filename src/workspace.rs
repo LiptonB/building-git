@@ -43,12 +43,16 @@ impl Workspace {
         dir: WorkspacePath,
         results: &mut Vec<WorkspacePath<'a>>,
     ) -> Result<()> {
-        const IGNORE: &[&str] = &[".git", ".swp", ".un~", "target"];
+        const IGNORE_PARTS: &[&str] = &[".swp", ".un~"];
+        const IGNORE_NAMES: &[&str] = &[".git", "target"];
         for entry in dir.path().read_dir()? {
             let entry = entry?;
             let name = entry.file_name();
             let name = name.to_str().ok_or(anyhow!("Invalid filename found"))?;
-            if IGNORE.iter().any(|ig| name.contains(ig)) {
+            if IGNORE_PARTS.iter().any(|ig| name.contains(ig)) {
+                continue;
+            }
+            if IGNORE_NAMES.iter().any(|ig| name == *ig) {
                 continue;
             }
             if entry.file_type()?.is_dir() {
