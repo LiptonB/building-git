@@ -105,7 +105,11 @@ impl Tree {
     }
 
     pub fn build(mut entries: Vec<TreeFile>) -> Result<Self> {
-        entries.sort_unstable_by(|a, b| a.rel_path.cmp(&b.rel_path));
+        entries.sort_unstable_by(|a, b| {
+            a.rel_path
+                .to_string_lossy()
+                .cmp(&b.rel_path.to_string_lossy())
+        });
 
         let mut root = Self::new();
         for entry in entries {
@@ -169,14 +173,6 @@ impl Tree {
         callback(self)?;
         Ok(())
     }
-
-    /* TODO
-    pub fn new(entries: &[TreeFile]) -> Self {
-        let mut entries = entries.to_vec();
-        entries.sort_unstable_by(|a, b| a.rel_path.cmp(&b.rel_path));
-        Self { entries }
-    }
-    */
 }
 
 impl Object for Tree {
