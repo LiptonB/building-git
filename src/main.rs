@@ -1,5 +1,6 @@
-pub mod database;
-pub mod workspace;
+mod database;
+mod refs;
+mod workspace;
 
 use std::env;
 use std::fs;
@@ -11,6 +12,7 @@ use structopt::StructOpt;
 use time::OffsetDateTime;
 
 use database::*;
+use refs::*;
 use workspace::*;
 
 #[derive(StructOpt, Debug)]
@@ -42,6 +44,7 @@ fn commit() -> Result<()> {
     let db_path = git_path.join("objects");
 
     let workspace = Workspace::new(&root_path);
+    let refs = Refs::new(&git_path);
     let database = Database::new(&db_path);
 
     let mut entries = Vec::new();
@@ -57,6 +60,7 @@ fn commit() -> Result<()> {
     let mut root = Tree::build(entries)?;
     root.traverse(&|tree| database.store(tree))?;
 
+    let parent = refs.read_head()?;
     let name = env::var("GIT_AUTHOR_NAME").context("GIT_AUTHOR_NAME")?;
     let email = env::var("GIT_AUTHOR_EMAIL").context("GIT_AUTHOR_EMAIL")?;
     let author = Author::new(&name, &email, OffsetDateTime::now_local());
@@ -64,15 +68,25 @@ fn commit() -> Result<()> {
     let mut message = String::new();
     io::stdin().read_to_string(&mut message)?;
 
-    let mut commit = Commit::new(root.oid(), author, &message);
+    let mut commit = Commit::new(
+        parent.to_owned(),
+        root.oid().to_owned(),
+        author,
+        message.clone(),
+    );
     database.store(&mut commit)?;
 
     let first_line = message.lines().next().ok_or(anyhow!("Empty message"))?;
     let commit_oid = commit.oid();
 
-    fs::write(git_path.join("HEAD"), &commit_oid)?;
+    refs.update_head(&commit_oid)?;
 
-    println!("[(root-commit) {}] {}", commit_oid, first_line);
+    let is_root = if parent.is_none() {
+        "(root-commit) "
+    } else {
+        ""
+    };
+    println!("[{}{}] {}", is_root, commit_oid, first_line);
 
     Ok(())
 }

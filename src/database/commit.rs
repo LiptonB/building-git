@@ -6,6 +6,7 @@ use super::object::Object;
 
 #[derive(Debug, Clone)]
 pub struct Commit {
+    parent: Option<String>,
     tree: String,
     author: Author,
     message: String,
@@ -13,11 +14,12 @@ pub struct Commit {
 }
 
 impl Commit {
-    pub fn new(tree: &str, author: Author, message: &str) -> Self {
+    pub fn new(parent: Option<String>, tree: String, author: Author, message: String) -> Self {
         Self {
-            tree: tree.to_owned(),
+            parent,
+            tree,
             author,
-            message: message.to_owned(),
+            message,
             oid: None,
         }
     }
@@ -29,16 +31,17 @@ impl Object for Commit {
     }
 
     fn content(&self) -> Vec<u8> {
-        format!(
-            "tree {}
-author {}
-committer {}
+        let mut lines = Vec::new();
+        lines.push(format!("tree {}", self.tree));
+        if let Some(ref parent) = self.parent {
+            lines.push(format!("parent {}", parent));
+        }
+        lines.push(format!("author {}", self.author));
+        lines.push(format!("committer {}", self.author));
+        lines.push("".to_owned());
+        lines.push(self.message.clone());
 
-{}",
-            self.tree, self.author, self.author, self.message
-        )
-        .as_bytes()
-        .to_owned()
+        lines.join("\n").as_bytes().to_owned()
     }
 
     fn set_oid(&mut self, oid: String) {
