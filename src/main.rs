@@ -1,4 +1,5 @@
 mod database;
+mod lockfile;
 mod refs;
 mod workspace;
 
@@ -11,9 +12,9 @@ use anyhow::{anyhow, Context, Result};
 use structopt::StructOpt;
 use time::OffsetDateTime;
 
-use database::*;
-use refs::*;
-use workspace::*;
+use crate::database::*;
+use crate::refs::*;
+use crate::workspace::*;
 
 #[derive(StructOpt, Debug)]
 enum Opt {
@@ -44,7 +45,7 @@ fn commit() -> Result<()> {
     let db_path = git_path.join("objects");
 
     let workspace = Workspace::new(&root_path);
-    let refs = Refs::new(&git_path);
+    let refs = Refs::new(git_path);
     let database = Database::new(&db_path);
 
     let mut entries = Vec::new();

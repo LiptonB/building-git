@@ -36,6 +36,11 @@ impl Database {
             .root
             .join(Path::new(&oid[0..2]))
             .join(Path::new(&oid[2..]));
+
+        if object_path.exists() {
+            return Ok(());
+        }
+
         let dir = object_path.parent().expect("Path error");
         let (tempfile, tempfile_name) = self.open_tempfile(&dir)?;
         let mut encoder = ZlibEncoder::new(&tempfile, Compression::fast());
