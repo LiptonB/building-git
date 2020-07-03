@@ -7,10 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-flate2 = "1.0.14"
-structopt = "0.3.13"
 anyhow = "1.0.28"
+cookie-factory = "0.3.1"
+flate2 = "1.0.14"
 rust-crypto = "0.2.36"
 rand = "0.7.3"
 rustc-serialize = "0.3.24"
+structopt = "0.3.13"
 time = "0.2.9"

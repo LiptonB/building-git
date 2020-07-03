@@ -21,7 +21,7 @@ impl Workspace {
         }
     }
 
-    fn path<P: AsRef<Path>>(&self, path: P) -> Result<WorkspacePath> {
+    pub fn path<P: AsRef<Path>>(&self, path: P) -> Result<WorkspacePath> {
         let full_path = path.as_ref().canonicalize()?;
         let rel_path = full_path
             .strip_prefix(&self.root)

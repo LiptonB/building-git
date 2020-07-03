@@ -1,4 +1,5 @@
 mod database;
+mod index;
 mod lockfile;
 mod refs;
 mod workspace;
@@ -13,6 +14,7 @@ use structopt::StructOpt;
 use time::OffsetDateTime;
 
 use crate::database::*;
+use crate::index::*;
 use crate::refs::*;
 use crate::workspace::*;
 
@@ -23,6 +25,9 @@ enum Opt {
         root: PathBuf,
     },
     Commit,
+    Add {
+        path: PathBuf,
+    },
 }
 
 fn init<P: AsRef<Path>>(root: P) -> Result<()> {
@@ -92,11 +97,33 @@ fn commit() -> Result<()> {
     Ok(())
 }
 
+fn add(path: PathBuf) -> Result<()> {
+    let root_path = fs::canonicalize(".")?;
+    let git_path = root_path.join(".git");
+
+    let workspace = Workspace::new(root_path);
+    let database = Database::new(git_path.join("objects"));
+    let mut index = Index::new(git_path.join("index"));
+
+    let file = workspace.path(path)?;
+    let data = file.read()?;
+    let metadata = file.stat()?;
+
+    let mut blob = Blob::new(data);
+    database.store(&mut blob)?;
+    index.add(&file, blob.oid(), &metadata);
+
+    index.write_updates()?;
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let opt = Opt::from_args();
     match opt {
         Opt::Init { root } => init(&root)?,
         Opt::Commit => commit()?,
+        Opt::Add { path } => add(path)?,
     }
 
     Ok(())

@@ -72,6 +72,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cookie-factory"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41f21b581d2f0cb891554812435667bb9610d74feb1a4c6415bf09c28ff0381d"
+
+[[package]]
 name = "crc32fast"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -150,6 +156,7 @@ name = "jit"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cookie-factory",
  "flate2",
  "rand 0.7.3",
  "rust-crypto",
