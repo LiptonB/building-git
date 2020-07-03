@@ -32,34 +32,40 @@ impl Workspace {
         })
     }
 
-    pub fn list_files(&self) -> Result<Vec<WorkspacePath>> {
+    pub fn list_files<P: AsRef<Path>>(&self, path: P) -> Result<Vec<WorkspacePath>> {
+        let path = self.path(path)?;
         let mut results = Vec::new();
-        self.list_files_in(self.path(".")?, &mut results)?;
+        self.list_files_in(path, &mut results)?;
         Ok(results)
     }
 
     fn list_files_in<'a>(
         &'a self,
-        dir: WorkspacePath,
+        path: WorkspacePath,
         results: &mut Vec<WorkspacePath<'a>>,
     ) -> Result<()> {
         const IGNORE_PARTS: &[&str] = &[".swp", ".un~"];
         const IGNORE_NAMES: &[&str] = &[".git", "target"];
-        for entry in dir.path().read_dir()? {
-            let entry = entry?;
-            let name = entry.file_name();
-            let name = name.to_str().ok_or(anyhow!("Invalid filename found"))?;
-            if IGNORE_PARTS.iter().any(|ig| name.contains(ig)) {
-                continue;
-            }
-            if IGNORE_NAMES.iter().any(|ig| name == *ig) {
-                continue;
-            }
-            if entry.file_type()?.is_dir() {
+
+        if path.stat()?.is_dir() {
+            for entry in path.path().read_dir()? {
+                let entry = entry?;
+                let name = entry.file_name();
+                let name = name.to_str().ok_or(anyhow!("Invalid filename found"))?;
+                if IGNORE_PARTS.iter().any(|ig| name.contains(ig)) {
+                    continue;
+                }
+                if IGNORE_NAMES.iter().any(|ig| name == *ig) {
+                    continue;
+                }
+                //if entry.file_type()?.is_dir() {
                 self.list_files_in(self.path(entry.path())?, results)?;
-            } else {
-                results.push(self.path(entry.path())?);
+                //} else {
+                //    results.push(self.path(entry.path())?);
+                //}
             }
+        } else {
+            results.push(self.path(path.path())?);
         }
         Ok(())
     }

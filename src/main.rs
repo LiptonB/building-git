@@ -54,7 +54,7 @@ fn commit() -> Result<()> {
     let database = Database::new(&db_path);
 
     let mut entries = Vec::new();
-    for file in workspace.list_files()? {
+    for file in workspace.list_files(".")? {
         let data = file.read()?;
         let mut blob = Blob::new(data);
         database.store(&mut blob)?;
@@ -106,13 +106,14 @@ fn add(paths: Vec<PathBuf>) -> Result<()> {
     let mut index = Index::new(git_path.join("index"));
 
     for path in paths {
-        let file = workspace.path(path)?;
-        let data = file.read()?;
-        let metadata = file.stat()?;
+        for file in workspace.list_files(path)? {
+            let data = file.read()?;
+            let metadata = file.stat()?;
 
-        let mut blob = Blob::new(data);
-        database.store(&mut blob)?;
-        index.add(&file, blob.oid(), &metadata);
+            let mut blob = Blob::new(data);
+            database.store(&mut blob)?;
+            index.add(&file, blob.oid(), &metadata);
+        }
     }
 
     index.write_updates()?;
