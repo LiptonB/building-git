@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::fs::Metadata;
 use std::io::{self, Write};
@@ -14,7 +14,7 @@ use crate::lockfile::*;
 use crate::workspace::*;
 
 pub struct Index {
-    entries: HashMap<PathBuf, Entry>,
+    entries: BTreeMap<PathBuf, Entry>,
     lockfile: Lockfile,
 }
 
@@ -37,7 +37,7 @@ struct Entry {
 impl Index {
     pub fn new(path: PathBuf) -> Self {
         Self {
-            entries: HashMap::new(),
+            entries: BTreeMap::new(),
             lockfile: Lockfile::new(path),
         }
     }

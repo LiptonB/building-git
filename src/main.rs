@@ -26,7 +26,7 @@ enum Opt {
     },
     Commit,
     Add {
-        path: PathBuf,
+        paths: Vec<PathBuf>,
     },
 }
 
@@ -97,7 +97,7 @@ fn commit() -> Result<()> {
     Ok(())
 }
 
-fn add(path: PathBuf) -> Result<()> {
+fn add(paths: Vec<PathBuf>) -> Result<()> {
     let root_path = fs::canonicalize(".")?;
     let git_path = root_path.join(".git");
 
@@ -105,13 +105,15 @@ fn add(path: PathBuf) -> Result<()> {
     let database = Database::new(git_path.join("objects"));
     let mut index = Index::new(git_path.join("index"));
 
-    let file = workspace.path(path)?;
-    let data = file.read()?;
-    let metadata = file.stat()?;
+    for path in paths {
+        let file = workspace.path(path)?;
+        let data = file.read()?;
+        let metadata = file.stat()?;
 
-    let mut blob = Blob::new(data);
-    database.store(&mut blob)?;
-    index.add(&file, blob.oid(), &metadata);
+        let mut blob = Blob::new(data);
+        database.store(&mut blob)?;
+        index.add(&file, blob.oid(), &metadata);
+    }
 
     index.write_updates()?;
 
@@ -123,7 +125,7 @@ fn main() -> Result<()> {
     match opt {
         Opt::Init { root } => init(&root)?,
         Opt::Commit => commit()?,
-        Opt::Add { path } => add(path)?,
+        Opt::Add { paths } => add(paths)?,
     }
 
     Ok(())
