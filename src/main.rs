@@ -105,6 +105,8 @@ fn add(paths: Vec<PathBuf>) -> Result<()> {
     let database = Database::new(git_path.join("objects"));
     let mut index = Index::new(git_path.join("index"));
 
+    //index.load_for_update()?;
+
     for path in paths {
         for file in workspace.list_files(path)? {
             let data = file.read()?;

@@ -1,15 +1,18 @@
+mod checksum;
+
 use std::cmp;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::fs::Metadata;
-use std::io::{self, Write};
+use std::io::Write;
 use std::iter;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use cookie_factory as cf;
-use crypto::{digest::Digest, sha1::Sha1};
+use crypto::sha1::Sha1;
 
+use self::checksum::*;
 use crate::lockfile::*;
 use crate::workspace::*;
 
@@ -58,12 +61,29 @@ impl Index {
         ))
     }
 
+    /*
+    pub fn load_for_update(&mut self) -> Result<()> {
+        let mut file = self
+            .lockfile
+            .hold_for_update()?
+            .ok_or(anyhow!("Index file is locked"))?;
+
+        self.load()?;
+
+        Ok(())
+    }
+
+    pub fn load(&mut self) -> Result<()> {
+        Ok(())
+    }
+    */
+
     pub fn write_updates(&self) -> Result<()> {
         let mut file = self
             .lockfile
             .hold_for_update()?
             .ok_or(anyhow!("Index file is locked"))?;
-        let mut writer = HashWriter::new(&mut file, Sha1::new());
+        let mut writer = ChecksummedFile::new(&mut file, Sha1::new());
 
         cf::gen_simple(self.serialize(), &mut writer)?;
 
@@ -78,6 +98,7 @@ impl Entry {
     const REGULAR_MODE: u32 = 0o100644;
     const EXECUTABLE_MODE: u32 = 0o100755;
     const MAX_PATH_SIZE: usize = 0xfff;
+    const ENTRY_BLOCK: usize = 8;
 
     fn new(file: &WorkspacePath, oid: &str, metadata: &Metadata) -> Self {
         use rustc_serialize::hex::FromHex;
@@ -116,7 +137,7 @@ impl Entry {
         };
 
         align(
-            8,
+            Entry::ENTRY_BLOCK,
             tuple((
                 be_u32(self.ctime),
                 be_u32(self.ctime_nsec),
@@ -137,48 +158,17 @@ impl Entry {
     }
 }
 
-struct HashWriter<W: Write, D: Digest> {
-    inner: W,
-    hasher: D,
-}
-
-impl<W: Write, D: Digest> HashWriter<W, D> {
-    fn new(inner: W, hasher: D) -> Self {
-        Self { inner, hasher }
-    }
-
-    fn write_hash(&mut self) -> io::Result<usize> {
-        let mut hash: Vec<u8> = iter::repeat(0)
-            .take((self.hasher.output_bits() + 7) / 8)
-            .collect();
-        self.hasher.result(&mut hash);
-        self.inner.write(&hash)
-    }
-}
-
-impl<W: Write, D: Digest> Write for HashWriter<W, D> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.hasher.input(buf);
-        self.inner.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.inner.flush()
-    }
-}
-
-fn align<W: Write, F>(amount: u64, f: F) -> impl cf::SerializeFn<W>
+fn align<W: Write, F>(amount: usize, f: F) -> impl cf::SerializeFn<W>
 where
     F: cf::SerializeFn<W>,
 {
     use cf::{bytes::be_u8, multi::all};
 
     move |out: cf::WriteContext<W>| {
-        let start = out.position;
+        let start: usize = out.position.try_into().unwrap();
         let out = f(out)?;
-        let end = out.position;
+        let end: usize = out.position.try_into().unwrap();
         let missing = (amount - ((end - start) % amount)) % amount;
-        let missing = missing.try_into().unwrap();
         all(iter::repeat(b'\0').take(missing).map(be_u8))(out)
     }
 }
