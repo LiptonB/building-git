@@ -52,14 +52,16 @@ impl Index {
         self.entries.insert(file.rel_path().to_owned(), entry);
     }
 
-    fn serialize<'a, W: Write + 'a>(&'a self) -> impl cf::SerializeFn<W> + 'a {
+    fn serialize_entries<'a, W: Write + 'a>(
+        entries: &'a BTreeMap<PathBuf, Entry>,
+    ) -> impl cf::SerializeFn<W> + 'a {
         use cf::{bytes::be_u32, combinator::slice, multi::all, sequence::tuple};
 
         tuple((
             slice(b"DIRC"),
             be_u32(2),
-            be_u32(self.entries.len().try_into().unwrap()),
-            all(self.entries.values().map(Entry::serialize)),
+            be_u32(entries.len().try_into().unwrap()),
+            all(entries.values().map(Entry::serialize)),
         ))
     }
 
@@ -80,11 +82,11 @@ impl Index {
     }
     */
 
-    pub fn write_updates(&mut self) -> Result<()> {
-        cf::gen_simple(self.serialize(), &mut self.file)?;
+    pub fn write_updates(mut self) -> Result<()> {
+        cf::gen_simple(Self::serialize_entries(&self.entries), &mut self.file)?;
 
         self.file.write_hash()?;
-        self.file.commit()?;
+        self.file.into_inner().commit()?;
 
         Ok(())
     }

@@ -12,6 +12,10 @@ impl<I, D: Digest> ChecksummedFile<I, D> {
     pub fn new(inner: I, hasher: D) -> Self {
         Self { inner, hasher }
     }
+
+    pub fn into_inner(self) -> I {
+        self.inner
+    }
 }
 
 impl<I: Write, D: Digest> ChecksummedFile<I, D> {
