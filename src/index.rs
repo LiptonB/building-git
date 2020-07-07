@@ -18,7 +18,7 @@ use crate::workspace::*;
 
 pub struct Index {
     entries: BTreeMap<PathBuf, Entry>,
-    lockfile: Lockfile,
+    file: ChecksummedFile<Lockfile, Sha1>,
 }
 
 struct Entry {
@@ -38,11 +38,13 @@ struct Entry {
 }
 
 impl Index {
-    pub fn new(path: PathBuf) -> Self {
-        Self {
+    pub fn try_new(path: PathBuf) -> Result<Self> {
+        let file = Lockfile::hold_for_update(path)?.ok_or(anyhow!("Index file is locked"))?;
+
+        Ok(Self {
             entries: BTreeMap::new(),
-            lockfile: Lockfile::new(path),
-        }
+            file: ChecksummedFile::new(file, Sha1::new()),
+        })
     }
 
     pub fn add(&mut self, file: &WorkspacePath, oid: &str, metadata: &Metadata) {
@@ -78,17 +80,11 @@ impl Index {
     }
     */
 
-    pub fn write_updates(&self) -> Result<()> {
-        let mut file = self
-            .lockfile
-            .hold_for_update()?
-            .ok_or(anyhow!("Index file is locked"))?;
-        let mut writer = ChecksummedFile::new(&mut file, Sha1::new());
+    pub fn write_updates(&mut self) -> Result<()> {
+        cf::gen_simple(self.serialize(), &mut self.file)?;
 
-        cf::gen_simple(self.serialize(), &mut writer)?;
-
-        writer.write_hash()?;
-        file.commit()?;
+        self.file.write_hash()?;
+        self.file.commit()?;
 
         Ok(())
     }
