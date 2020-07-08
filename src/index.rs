@@ -3,8 +3,8 @@ mod checksum;
 use std::cmp;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
-use std::fs::Metadata;
-use std::io::Write;
+use std::fs::{File, Metadata};
+use std::io::{Read, Write};
 use std::iter;
 use std::path::PathBuf;
 
@@ -38,12 +38,16 @@ struct Entry {
 }
 
 impl Index {
-    pub fn try_new(path: PathBuf) -> Result<Self> {
-        let file = Lockfile::hold_for_update(path)?.ok_or(anyhow!("Index file is locked"))?;
+    pub fn load_for_update(path: PathBuf) -> Result<Self> {
+        let lockfile =
+            Lockfile::hold_for_update(path.clone())?.ok_or(anyhow!("Index file is locked"))?;
+
+        let mut indexfile = File::open(&path)?;
+        let entries = Self::load_entries(&indexfile)?;
 
         Ok(Self {
-            entries: BTreeMap::new(),
-            file: ChecksummedFile::new(file, Sha1::new()),
+            entries,
+            file: ChecksummedFile::new(lockfile, Sha1::new()),
         })
     }
 
@@ -65,22 +69,28 @@ impl Index {
         ))
     }
 
-    /*
-    pub fn load_for_update(&mut self) -> Result<()> {
-        let mut file = self
-            .lockfile
-            .hold_for_update()?
-            .ok_or(anyhow!("Index file is locked"))?;
+    fn load_entries<R: Read>(indexfile: R) -> Result<BTreeMap<PathBuf, Entry>> {
+        let mut indexfile = ChecksummedFile::new(indexfile, Sha1::new());
 
-        self.load()?;
+        let count = Self::read_header(&mut indexfile)?;
+        let entries = Self::read_entries(&mut indexfile, count)?;
 
-        Ok(())
+        indexfile.verify_checksum()?;
+
+        Ok(entries)
     }
 
-    pub fn load(&mut self) -> Result<()> {
-        Ok(())
+    fn read_header<R: Read>(indexfile: R) -> Result<usize> {
+        unimplemented!();
     }
-    */
+
+    fn read_entries<R: Read>(indexfile: R, count: usize) -> Result<BTreeMap<PathBuf, Entry>> {
+        let mut entries = BTreeMap::new();
+
+        unimplemented!();
+
+        Ok(entries)
+    }
 
     pub fn write_updates(mut self) -> Result<()> {
         cf::gen_simple(Self::serialize_entries(&self.entries), &mut self.file)?;

@@ -103,7 +103,7 @@ fn add(paths: Vec<PathBuf>) -> Result<()> {
 
     let workspace = Workspace::new(root_path);
     let database = Database::new(git_path.join("objects"));
-    let mut index = Index::try_new(git_path.join("index"))?;
+    let mut index = Index::load_for_update(git_path.join("index"))?;
 
     //index.load_for_update()?;
 
