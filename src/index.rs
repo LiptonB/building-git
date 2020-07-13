@@ -8,7 +8,7 @@ use std::io::{Read, Write};
 use std::iter;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use cookie_factory as cf;
 use crypto::sha1::Sha1;
 
@@ -21,6 +21,7 @@ pub struct Index {
     file: ChecksummedFile<Lockfile, Sha1>,
 }
 
+#[derive(Debug)]
 struct Entry {
     ctime: u32,
     ctime_nsec: u32,
@@ -38,11 +39,15 @@ struct Entry {
 }
 
 impl Index {
+    const HEADER_SIZE: usize = 12;
+    const SIGNATURE: &'static [u8] = b"DIRC";
+    const VERSION: u32 = 2;
+
     pub fn load_for_update(path: PathBuf) -> Result<Self> {
         let lockfile =
             Lockfile::hold_for_update(path.clone())?.ok_or(anyhow!("Index file is locked"))?;
 
-        let mut indexfile = File::open(&path)?;
+        let indexfile = File::open(&path)?;
         let entries = Self::load_entries(&indexfile)?;
 
         Ok(Self {
@@ -62,8 +67,8 @@ impl Index {
         use cf::{bytes::be_u32, combinator::slice, multi::all, sequence::tuple};
 
         tuple((
-            slice(b"DIRC"),
-            be_u32(2),
+            slice(Self::SIGNATURE),
+            be_u32(Self::VERSION),
             be_u32(entries.len().try_into().unwrap()),
             all(entries.values().map(Entry::serialize)),
         ))
@@ -80,14 +85,126 @@ impl Index {
         Ok(entries)
     }
 
-    fn read_header<R: Read>(indexfile: R) -> Result<usize> {
-        unimplemented!();
+    fn read_header<R: Read>(mut indexfile: R) -> Result<usize> {
+        use nom::{bytes::streaming::take, number::streaming::be_u32, sequence::tuple, IResult};
+
+        fn parse_header<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], u32, u32)> {
+            tuple((
+                take(Index::SIGNATURE.len()), // signature
+                be_u32,                       // version
+                be_u32,                       // count
+            ))(input)
+        }
+
+        let mut data = [0; Self::HEADER_SIZE];
+        indexfile.read(&mut data)?;
+
+        let (extra, (signature, version, count)) =
+            parse_header(&data).map_err(|e| anyhow!("{:?}", e))?;
+        if signature != Self::SIGNATURE {
+            bail!(
+                "Signature: expected '{:?}' but found '{:?}'",
+                Self::SIGNATURE,
+                signature
+            );
+        }
+        if version != Self::VERSION {
+            bail!(
+                "Version: expected '{}' but found '{}'",
+                Self::VERSION,
+                version
+            );
+        }
+        if !extra.is_empty() {
+            bail!("Programmer error: Unexpected extra data: {:?}", extra);
+        }
+
+        Ok(count as usize)
     }
 
-    fn read_entries<R: Read>(indexfile: R, count: usize) -> Result<BTreeMap<PathBuf, Entry>> {
-        let mut entries = BTreeMap::new();
+    fn read_entries<R: Read>(mut indexfile: R, count: usize) -> Result<BTreeMap<PathBuf, Entry>> {
+        use nom::{
+            bytes::streaming::{tag, take, take_until},
+            multi::many_m_n,
+            number::streaming::{be_u16, be_u32},
+            sequence::{terminated, tuple},
+            Err, IResult,
+        };
 
-        unimplemented!();
+        fn parse_entry(
+            input: &[u8],
+        ) -> IResult<
+            &[u8],
+            (
+                u32,
+                u32,
+                u32,
+                u32,
+                u32,
+                u32,
+                u32,
+                u32,
+                u32,
+                u32,
+                &[u8],
+                u16,
+                &[u8],
+            ),
+        > {
+            terminated(
+                tuple((
+                    be_u32,
+                    be_u32,
+                    be_u32,
+                    be_u32,
+                    be_u32,
+                    be_u32,
+                    be_u32,
+                    be_u32,
+                    be_u32,
+                    be_u32,
+                    take(40u8),
+                    be_u16,
+                    take_until("\0"),
+                )),
+                many_m_n(1, 8, tag("\0")),
+            )(input)
+        }
+
+        let mut entries: BTreeMap<PathBuf, Entry> = BTreeMap::new();
+        let mut data = vec![0; Entry::ENTRY_MIN_SIZE];
+        indexfile.read(&mut data)?;
+
+        while entries.len() < count {
+            match parse_entry(&data) {
+                Ok((extra, entrydata)) => {
+                    if !extra.is_empty() {
+                        bail!("Programmer error: Unexpected extra data: {:?}", extra);
+                    }
+
+                    let entry = Entry::load(entrydata);
+                    println!("Loaded entry: {:?}", entry);
+                    let path = PathBuf::from(&entry.path);
+                    entries.insert(path, entry);
+
+                    let amount = indexfile.read(&mut data[..Entry::ENTRY_MIN_SIZE])?;
+                    if amount == 0 {
+                        bail!("Unexpected EOF");
+                    }
+                    data.resize(amount, 0);
+                }
+                Err(Err::Incomplete(_)) => {
+                    println!("Reading in more");
+                    let current_len = data.len();
+                    data.resize(current_len + Entry::ENTRY_BLOCK, 0);
+                    let amount = indexfile.read(&mut data[current_len..])?;
+                    if amount == 0 {
+                        bail!("Unexpected EOF");
+                    }
+                }
+                Err(_) => bail!("Index parse error"),
+            }
+        }
 
         Ok(entries)
     }
@@ -107,6 +224,7 @@ impl Entry {
     const EXECUTABLE_MODE: u32 = 0o100755;
     const MAX_PATH_SIZE: usize = 0xfff;
     const ENTRY_BLOCK: usize = 8;
+    const ENTRY_MIN_SIZE: usize = 64;
 
     fn new(file: &WorkspacePath, oid: &str, metadata: &Metadata) -> Self {
         use rustc_serialize::hex::FromHex;
@@ -134,6 +252,56 @@ impl Entry {
             oid: oid.from_hex().expect("oid is not a valid hex string"),
             flags,
             path,
+        }
+    }
+
+    fn load(
+        loaded_data: (
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            &[u8],
+            u16,
+            &[u8],
+        ),
+    ) -> Self {
+        let (
+            ctime,
+            ctime_nsec,
+            mtime,
+            mtime_nsec,
+            dev,
+            ino,
+            mode,
+            uid,
+            gid,
+            size,
+            oid,
+            flags,
+            path,
+        ) = loaded_data;
+
+        Self {
+            ctime,
+            ctime_nsec,
+            mtime,
+            mtime_nsec,
+            dev,
+            ino,
+            mode,
+            uid,
+            gid,
+            size,
+            oid: oid.to_vec(),
+            flags,
+            path: String::from_utf8_lossy(path).into_owned(),
         }
     }
 

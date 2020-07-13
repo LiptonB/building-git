@@ -1,5 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, ErrorKind, Write};
+use std::mem;
 use std::path::PathBuf;
 
 use anyhow::{bail, Result};
@@ -35,6 +36,7 @@ impl Lockfile {
 
     pub fn commit(self) -> Result<()> {
         fs::rename(&self.lock_path, &self.path)?;
+        mem::forget(self);
         Ok(())
     }
 }
@@ -46,5 +48,14 @@ impl Write for Lockfile {
 
     fn flush(&mut self) -> io::Result<()> {
         self.file.flush()
+    }
+}
+
+impl Drop for Lockfile {
+    fn drop(&mut self) {
+        fs::remove_file(&self.lock_path).expect(&format!(
+            "Failed to remove lock file: {}",
+            self.lock_path.display()
+        ));
     }
 }
