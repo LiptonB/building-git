@@ -18,7 +18,7 @@ use crate::workspace::*;
 
 pub struct Index {
     entries: BTreeMap<PathBuf, Entry>,
-    file: ChecksummedFile<Lockfile, Sha1>,
+    file: Option<ChecksummedFile<Lockfile, Sha1>>,
     changed: bool,
 }
 
@@ -48,6 +48,13 @@ impl Index {
         let lockfile =
             Lockfile::hold_for_update(path.clone())?.ok_or(anyhow!("Index file is locked"))?;
 
+        let mut index = Self::load(path)?;
+        index.file = Some(ChecksummedFile::new(lockfile, Sha1::new()));
+
+        Ok(index)
+    }
+
+    pub fn load(path: PathBuf) -> Result<Self> {
         let entries = match File::open(&path) {
             Ok(indexfile) => Self::load_entries(&indexfile)?,
             Err(_) => BTreeMap::new(),
@@ -55,7 +62,7 @@ impl Index {
 
         Ok(Self {
             entries,
-            file: ChecksummedFile::new(lockfile, Sha1::new()),
+            file: None,
             changed: false,
         })
     }
@@ -219,10 +226,15 @@ impl Index {
             return Ok(());
         }
 
-        cf::gen_simple(Self::serialize_entries(&self.entries), &mut self.file)?;
+        let mut file = self
+            .file
+            .take()
+            .expect("Programmer error: index was not locked for writing");
 
-        self.file.write_hash()?;
-        self.file.into_inner().commit()?;
+        cf::gen_simple(Self::serialize_entries(&self.entries), &mut file)?;
+
+        file.write_hash()?;
+        file.into_inner().commit()?;
 
         Ok(())
     }
