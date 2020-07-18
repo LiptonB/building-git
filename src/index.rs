@@ -19,6 +19,7 @@ use crate::workspace::*;
 pub struct Index {
     entries: BTreeMap<PathBuf, Entry>,
     file: ChecksummedFile<Lockfile, Sha1>,
+    changed: bool,
 }
 
 #[derive(Debug)]
@@ -55,12 +56,14 @@ impl Index {
         Ok(Self {
             entries,
             file: ChecksummedFile::new(lockfile, Sha1::new()),
+            changed: false,
         })
     }
 
     pub fn add(&mut self, file: &WorkspacePath, oid: &str, metadata: &Metadata) {
         let entry = Entry::new(file, oid, metadata);
         self.entries.insert(file.rel_path().to_owned(), entry);
+        self.changed = true;
     }
 
     fn serialize_entries<'a, W: Write + 'a>(
@@ -211,6 +214,11 @@ impl Index {
     }
 
     pub fn write_updates(mut self) -> Result<()> {
+        if !self.changed {
+            // Lockfile will be deleted when self is dropped
+            return Ok(());
+        }
+
         cf::gen_simple(Self::serialize_entries(&self.entries), &mut self.file)?;
 
         self.file.write_hash()?;
