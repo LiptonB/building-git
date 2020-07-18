@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::fs::Metadata;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
@@ -54,13 +52,7 @@ impl Tree {
         }
     }
 
-    pub fn build(mut entries: Vec<TreeFile>) -> Result<Self> {
-        entries.sort_unstable_by(|a, b| {
-            a.rel_path
-                .to_string_lossy()
-                .cmp(&b.rel_path.to_string_lossy())
-        });
-
+    pub fn build<E: IntoIterator<Item = TreeFile>>(entries: E) -> Result<Self> {
         let mut root = Self::new();
         for entry in entries {
             let ancestors = entry.ancestors();
@@ -160,11 +152,11 @@ impl TreeFile {
     const REGULAR_MODE: &'static str = "100644";
     const EXECUTABLE_MODE: &'static str = "100755";
 
-    pub fn new<P: AsRef<Path>>(rel_path: P, oid: &str, metadata: &Metadata) -> Self {
+    pub fn new<P: AsRef<Path>>(rel_path: P, oid: &str, mode: u32) -> Self {
         Self {
             rel_path: rel_path.as_ref().to_owned(),
             oid: oid.to_owned(),
-            mode: metadata.mode(),
+            mode,
         }
     }
 

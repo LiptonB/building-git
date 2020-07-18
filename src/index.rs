@@ -23,20 +23,20 @@ pub struct Index {
 }
 
 #[derive(Debug)]
-struct Entry {
-    ctime: u32,
-    ctime_nsec: u32,
-    mtime: u32,
-    mtime_nsec: u32,
-    dev: u32,
-    ino: u32,
-    mode: u32,
-    uid: u32,
-    gid: u32,
-    size: u32,
-    oid: Vec<u8>,
-    flags: u16,
-    path: String,
+pub struct Entry {
+    pub ctime: u32,
+    pub ctime_nsec: u32,
+    pub mtime: u32,
+    pub mtime_nsec: u32,
+    pub dev: u32,
+    pub ino: u32,
+    pub mode: u32,
+    pub uid: u32,
+    pub gid: u32,
+    pub size: u32,
+    pub oid: Vec<u8>,
+    pub flags: u16,
+    pub path: String,
 }
 
 impl Index {
@@ -237,6 +237,10 @@ impl Index {
         file.into_inner().commit()?;
 
         Ok(())
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Entry> {
+        self.entries.values()
     }
 }
 

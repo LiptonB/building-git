@@ -10,6 +10,7 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
+use rustc_serialize::hex::ToHex;
 use structopt::StructOpt;
 use time::OffsetDateTime;
 
@@ -49,19 +50,13 @@ fn commit() -> Result<()> {
     let git_path = root_path.join(".git");
     let db_path = git_path.join("objects");
 
-    let workspace = Workspace::new(&root_path);
+    let index = Index::load(git_path.join("index"))?;
     let refs = Refs::new(git_path);
     let database = Database::new(&db_path);
 
-    let mut entries = Vec::new();
-    for file in workspace.list_files(".")? {
-        let data = file.read()?;
-        let mut blob = Blob::new(data);
-        database.store(&mut blob)?;
-
-        let metadata = file.stat()?;
-        entries.push(TreeFile::new(file.rel_path(), blob.oid(), &metadata));
-    }
+    let entries = index
+        .iter()
+        .map(|entry| TreeFile::new(&entry.path, &entry.oid.to_hex(), entry.mode));
 
     let mut root = Tree::build(entries)?;
     root.traverse(&|tree| database.store(tree))?;
