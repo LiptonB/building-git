@@ -47,8 +47,10 @@ impl Index {
         let lockfile =
             Lockfile::hold_for_update(path.clone())?.ok_or(anyhow!("Index file is locked"))?;
 
-        let indexfile = File::open(&path)?;
-        let entries = Self::load_entries(&indexfile)?;
+        let entries = match File::open(&path) {
+            Ok(indexfile) => Self::load_entries(&indexfile)?,
+            Err(_) => BTreeMap::new(),
+        };
 
         Ok(Self {
             entries,
@@ -124,7 +126,8 @@ impl Index {
 
     fn read_entries<R: Read>(mut indexfile: R, count: usize) -> Result<BTreeMap<PathBuf, Entry>> {
         use nom::{
-            bytes::streaming::{tag, take, take_until},
+            bytes::complete::tag,
+            bytes::streaming::{take, take_until},
             multi::many_m_n,
             number::streaming::{be_u16, be_u32},
             sequence::{terminated, tuple},
@@ -163,7 +166,7 @@ impl Index {
                     be_u32,
                     be_u32,
                     be_u32,
-                    take(40u8),
+                    take(20u8),
                     be_u16,
                     take_until("\0"),
                 )),
@@ -183,7 +186,6 @@ impl Index {
                     }
 
                     let entry = Entry::load(entrydata);
-                    println!("Loaded entry: {:?}", entry);
                     let path = PathBuf::from(&entry.path);
                     entries.insert(path, entry);
 
@@ -194,7 +196,6 @@ impl Index {
                     data.resize(amount, 0);
                 }
                 Err(Err::Incomplete(_)) => {
-                    println!("Reading in more");
                     let current_len = data.len();
                     data.resize(current_len + Entry::ENTRY_BLOCK, 0);
                     let amount = indexfile.read(&mut data[current_len..])?;
