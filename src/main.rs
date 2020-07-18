@@ -32,8 +32,9 @@ enum Opt {
 }
 
 fn init<P: AsRef<Path>>(root: P) -> Result<()> {
-    let root = fs::canonicalize(root)?;
-    let git = root.join(".git");
+    let git = root.as_ref().join(".git");
+    fs::create_dir_all(&git).with_context(|| format!("Failed to create {}", git.display()))?;
+    let git = fs::canonicalize(git)?;
 
     let create = |dirname| {
         let path = git.join(dirname);
