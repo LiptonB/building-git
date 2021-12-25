@@ -100,7 +100,7 @@ impl Index {
     fn read_header<R: Read>(mut indexfile: R) -> Result<usize> {
         use nom::{bytes::streaming::take, number::streaming::be_u32, sequence::tuple, IResult};
 
-        fn parse_header<'a>(input: &'a [u8]) -> IResult<&'a [u8], (&'a [u8], u32, u32)> {
+        fn parse_header(input: &[u8]) -> IResult<&[u8], (&[u8], u32, u32)> {
             tuple((
                 take(Index::SIGNATURE.len()), // signature
                 be_u32,                       // version

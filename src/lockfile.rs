@@ -53,7 +53,7 @@ impl Write for Lockfile {
 
 impl Drop for Lockfile {
     fn drop(&mut self) {
-        fs::remove_file(&self.lock_path).expect(&format!(
+        fs::remove_file(&self.lock_path).unwrap_or_else(|_| panic!(
             "Failed to remove lock file: {}",
             self.lock_path.display()
         ));

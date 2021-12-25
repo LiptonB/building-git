@@ -82,7 +82,7 @@ fn commit() -> Result<()> {
     let first_line = message.lines().next().ok_or(anyhow!("Empty message"))?;
     let commit_oid = commit.oid();
 
-    refs.update_head(&commit_oid)?;
+    refs.update_head(commit_oid)?;
 
     let is_root = if parent.is_none() {
         "(root-commit) "
