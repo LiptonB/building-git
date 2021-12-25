@@ -37,5 +37,5 @@ pub fn compute_oid<O: Object>(object: &mut O) {
     let mut hasher = Sha1::new();
     hasher.input(&to_bytes(object));
     let oid = hasher.result_str();
-    object.set_oid(oid.to_owned());
+    object.set_oid(oid);
 }

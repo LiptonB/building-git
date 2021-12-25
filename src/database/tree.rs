@@ -67,7 +67,7 @@ impl Tree {
             let name = entry
                 .rel_path
                 .file_name()
-                .ok_or(anyhow!("Missing filename in {:?}", entry))?
+                .ok_or_else(|| anyhow!("Missing filename in {:?}", entry))?
                 .to_string_lossy()
                 .into_owned();
             self.key_order.push(name.clone());
@@ -76,7 +76,7 @@ impl Tree {
             let first_parent = parents[0]
                 .as_ref()
                 .file_name()
-                .ok_or(anyhow!("Missing filename in {:?}", parents[0].as_ref()))?
+                .ok_or_else(|| anyhow!("Missing filename in {:?}", parents[0].as_ref()))?
                 .to_string_lossy()
                 .into_owned();
             if !self.entries.contains_key(&first_parent) {

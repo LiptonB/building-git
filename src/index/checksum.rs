@@ -39,7 +39,7 @@ impl<I: Read, D: Digest> ChecksummedFile<I, D> {
         let mut read: Vec<u8> = iter::repeat(0).take(computed.len()).collect();
         self.inner.read(&mut read)?;
 
-        return Ok(computed == read);
+        Ok(computed == read)
     }
 }
 
