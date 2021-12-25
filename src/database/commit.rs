@@ -78,7 +78,7 @@ impl fmt::Display for Author {
             "{} <{}> {} {}",
             self.name,
             self.email,
-            self.timestamp.timestamp(),
+            self.timestamp.unix_timestamp(),
             self.timestamp.offset().lazy_format("%z")
         )
     }
