@@ -39,6 +39,22 @@ pub struct Entry {
     pub path: String,
 }
 
+type EntryData<'a> = (
+        u32,
+        u32,
+        u32,
+        u32,
+        u32,
+        u32,
+        u32,
+        u32,
+        u32,
+        u32,
+        &'a[u8],
+        u16,
+        &'a[u8],
+    );
+
 impl Index {
     const HEADER_SIZE: usize = 12;
     const SIGNATURE: &'static [u8] = b"DIRC";
@@ -148,21 +164,7 @@ impl Index {
             input: &[u8],
         ) -> IResult<
             &[u8],
-            (
-                u32,
-                u32,
-                u32,
-                u32,
-                u32,
-                u32,
-                u32,
-                u32,
-                u32,
-                u32,
-                &[u8],
-                u16,
-                &[u8],
-            ),
+            EntryData,
         > {
             terminated(
                 tuple((
@@ -281,21 +283,7 @@ impl Entry {
     }
 
     fn load(
-        loaded_data: (
-            u32,
-            u32,
-            u32,
-            u32,
-            u32,
-            u32,
-            u32,
-            u32,
-            u32,
-            u32,
-            &[u8],
-            u16,
-            &[u8],
-        ),
+        loaded_data: EntryData,
     ) -> Self {
         let (
             ctime,
