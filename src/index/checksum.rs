@@ -37,7 +37,7 @@ impl<I: Read, D: Digest> ChecksummedFile<I, D> {
     pub fn verify_checksum(&mut self) -> Result<bool> {
         let computed = self.hash();
         let mut read: Vec<u8> = iter::repeat(0).take(computed.len()).collect();
-        self.inner.read(&mut read)?;
+        self.inner.read_exact(&mut read)?;
 
         Ok(computed == read)
     }

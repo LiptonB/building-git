@@ -125,7 +125,7 @@ impl Index {
         }
 
         let mut data = [0; Self::HEADER_SIZE];
-        indexfile.read(&mut data)?;
+        indexfile.read_exact(&mut data)?;
 
         let (extra, (signature, version, count)) =
             parse_header(&data).map_err(|e| anyhow!("{:?}", e))?;
@@ -188,7 +188,7 @@ impl Index {
 
         let mut entries: BTreeMap<PathBuf, Entry> = BTreeMap::new();
         let mut data = vec![0; Entry::ENTRY_MIN_SIZE];
-        indexfile.read(&mut data)?;
+        indexfile.read_exact(&mut data)?;
 
         while entries.len() < count {
             match parse_entry(&data) {

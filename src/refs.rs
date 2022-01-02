@@ -17,8 +17,8 @@ impl Refs {
 
     pub fn update_head(&self, oid: &str) -> Result<()> {
         if let Some(mut head) = Lockfile::hold_for_update(self.head_path())? {
-            head.write(oid.as_bytes())?;
-            head.write(b"\n")?;
+            head.write_all(oid.as_bytes())?;
+            head.write_all(b"\n")?;
             head.commit()?;
         } else {
             bail!(
