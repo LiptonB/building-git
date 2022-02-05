@@ -65,7 +65,7 @@ fn commit() -> Result<()> {
     let parent = refs.read_head()?;
     let name = env::var("GIT_AUTHOR_NAME").context("GIT_AUTHOR_NAME")?;
     let email = env::var("GIT_AUTHOR_EMAIL").context("GIT_AUTHOR_EMAIL")?;
-    let timestamp = OffsetDateTime::try_now_local()?;
+    let timestamp = OffsetDateTime::try_now_local().unwrap_or_else(|_| { OffsetDateTime::now_utc() });
     let author = Author::new(&name, &email, timestamp);
 
     let mut message = String::new();
