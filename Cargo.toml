@@ -17,3 +17,7 @@ structopt = "0.3.13"
 time = "0.2.9"
 nom = "5.1.2"
 thiserror = "1.0.30"
+tracing = "0.1.30"
+tracing-subscriber = { version = "0.3.8", features = ["env-filter"] }
+
+[features]

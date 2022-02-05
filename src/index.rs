@@ -70,6 +70,7 @@ impl Index {
         Ok(index)
     }
 
+    #[tracing::instrument(name = "Index::load")]
     pub fn load(path: PathBuf) -> Result<Self> {
         let entries = match File::open(&path) {
             Ok(indexfile) => Self::load_entries(&indexfile)?,
