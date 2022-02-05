@@ -108,7 +108,9 @@ impl Index {
         let count = Self::read_header(&mut indexfile)?;
         let entries = Self::read_entries(&mut indexfile, count)?;
 
-        indexfile.verify_checksum()?;
+        if !indexfile.verify_checksum()? {
+            bail!("Checksum validation failed!");
+        }
 
         Ok(entries)
     }
