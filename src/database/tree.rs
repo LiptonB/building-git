@@ -117,7 +117,7 @@ impl Object for Tree {
 
         self.key_order
             .iter()
-            .map(|key| {
+            .flat_map(|key| {
                 let entry = &self.entries[key];
                 let oid = entry
                     .oid()
@@ -133,7 +133,6 @@ impl Object for Tree {
                 ];
                 parts
             }) // Iterator<Vec<Vec<u8>>>
-            .flatten() // Iterator<Vec<u8>>
             .flatten() // Iterator<u8>
             .collect() // Vec<u8>
     }
