@@ -116,6 +116,7 @@ impl Index {
         Ok(entries)
     }
 
+    #[tracing::instrument(skip(indexfile))]
     fn read_header<R: Read>(mut indexfile: R) -> Result<usize> {
         use nom::{bytes::streaming::take, number::streaming::be_u32, sequence::tuple, IResult};
 
@@ -128,7 +129,9 @@ impl Index {
         }
 
         let mut data = [0; Self::HEADER_SIZE];
-        indexfile.read_exact(&mut data)?;
+        tracing::debug!(bytes = data.len(), "About to read from index");
+        indexfile.read(&mut data)?;
+        tracing::debug!(bytes = data.len(), "Read from index");
 
         let (extra, (signature, version, count)) =
             parse_header(&data).map_err(|e| anyhow!("{:?}", e))?;
@@ -153,6 +156,7 @@ impl Index {
         Ok(count as usize)
     }
 
+    #[tracing::instrument(skip(indexfile))]
     fn read_entries<R: Read>(mut indexfile: R, count: usize) -> Result<BTreeMap<PathBuf, Entry>> {
         use nom::{
             bytes::complete::tag,
@@ -191,6 +195,7 @@ impl Index {
 
         let mut entries: BTreeMap<PathBuf, Entry> = BTreeMap::new();
         let mut data = vec![0; Entry::ENTRY_MIN_SIZE];
+        tracing::debug!(bytes = data.len(), "About to read_exact from index");
         indexfile.read_exact(&mut data)?;
 
         while entries.len() < count {
@@ -204,7 +209,9 @@ impl Index {
                     let path = PathBuf::from(&entry.path);
                     entries.insert(path, entry);
 
+                    tracing::debug!(bytes = Entry::ENTRY_MIN_SIZE, "About to read another entry from index");
                     let amount = indexfile.read(&mut data[..Entry::ENTRY_MIN_SIZE])?;
+                    tracing::debug!(bytes = amount, "Read from index");
                     if amount == 0 {
                         bail!("Unexpected EOF");
                     }
@@ -213,7 +220,9 @@ impl Index {
                 Err(Err::Incomplete(_)) => {
                     let current_len = data.len();
                     data.resize(current_len + Entry::ENTRY_BLOCK, 0);
+                    tracing::debug!(bytes = Entry::ENTRY_BLOCK, "Incomplete, reading more from index");
                     let amount = indexfile.read(&mut data[current_len..])?;
+                    tracing::debug!(bytes = amount, "Read from index");
                     if amount == 0 {
                         bail!("Unexpected EOF");
                     }
@@ -236,6 +245,7 @@ impl Index {
             .take()
             .expect("Programmer error: index was not locked for writing");
 
+        tracing::debug!(entries = ?self.entries, "About to write index");
         cf::gen_simple(Self::serialize_entries(&self.entries), &mut file)?;
 
         file.write_hash()?;
@@ -362,5 +372,41 @@ where
         let end: usize = out.position.try_into().unwrap();
         let missing = (amount - ((end - start) % amount)) % amount;
         all(iter::repeat(b'\0').take(missing).map(be_u8))(out)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+
+    use tempfile::{tempdir};
+
+    use crate::workspace::Workspace;
+    use super::Index;
+
+    #[test]
+    fn can_roundtrip_index() {
+        let tempdir = tempdir().expect("tempdir");
+
+        let filepath = tempdir.path().join("testfile");
+        File::create(&filepath).expect("File::create");
+
+        {
+            let workspace = Workspace::new(tempdir.path());
+            let workspace_path = workspace.path(&filepath).expect("Workspace::path");
+            let metadata = workspace_path.stat().expect("WorkspacePath::stat");
+
+            let mut index = Index::load_for_update(tempdir.path().join("index")).expect("Index::load_for_update while empty");
+
+            index.add(&workspace_path, "ffffff", &metadata);
+            index.write_updates().expect("Index::write_updates");
+        }
+
+        {
+            let index = Index::load(tempdir.path().join("index")).expect("Index::load_for_update after write");
+            let entry = index.iter().next().expect("No entries in loaded index");
+            assert_eq!(entry.path, "testfile");
+        }
     }
 }

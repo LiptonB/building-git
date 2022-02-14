@@ -1,17 +1,8 @@
 use std::io::{Read, Error as IOError, Write};
 use std::iter;
 
+use anyhow::{Error, Context};
 use crypto::digest::Digest;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("IO Error")]
-    Io {
-        #[from]
-        source: std::io::Error,
-    }
-}
 
 pub struct ChecksummedFile<I, D: Digest> {
     inner: I,
@@ -47,7 +38,8 @@ impl<I: Read, D: Digest> ChecksummedFile<I, D> {
     pub fn verify_checksum(&mut self) -> Result<bool, Error> {
         let computed = self.hash();
         let mut read: Vec<u8> = iter::repeat(0).take(computed.len()).collect();
-        self.inner.read_exact(&mut read)?;
+        tracing::debug!(bytes = read.len(), "About to read from checksummed file");
+        self.inner.read_exact(&mut read).context("Reading checksum")?;
 
         Ok(computed == read)
     }

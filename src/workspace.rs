@@ -22,7 +22,7 @@ impl Workspace {
     }
 
     pub fn path<P: AsRef<Path>>(&self, path: P) -> Result<WorkspacePath> {
-        let full_path = path.as_ref().canonicalize()?;
+        let full_path = path.as_ref().canonicalize().with_context(|| format!("Unable to look up path {}", path.as_ref().display()))?;
         let rel_path = full_path
             .strip_prefix(&self.root)
             .with_context(|| format!("Path {} is not inside workspace", full_path.display()))?;
