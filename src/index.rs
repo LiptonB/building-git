@@ -369,7 +369,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
+    use std::fs::{self, File};
 
     use tempfile::tempdir;
 
@@ -389,7 +389,7 @@ mod tests {
             let metadata = workspace_path.stat().expect("WorkspacePath::stat");
 
             let mut index = Index::load_for_update(tempdir.path().join("index"))
-                .expect("Index::load_for_update while empty");
+                .expect("Index::load_for_update");
 
             index.add(
                 &workspace_path,
@@ -398,7 +398,7 @@ mod tests {
             );
 
             let mut index_iter = index.iter();
-            let entry = index_iter.next().expect("No entries in loaded index");
+            let entry = index_iter.next().expect("No entries in index");
             assert_eq!(entry.path, "testfile");
             assert!(index_iter.next().is_none());
         }
@@ -435,5 +435,62 @@ mod tests {
             assert_eq!(entry.path, "testfile");
             assert!(index_iter.next().is_none());
         }
+    }
+
+    #[test]
+    fn can_replace_file_with_dir() {
+        let tempdir = tempdir().expect("tempdir");
+
+        let alice_filepath = tempdir.path().join("alice.txt");
+        let bob_filepath = tempdir.path().join("bob.txt");
+        let nested_alice_filepath = alice_filepath.join("nested.txt");
+
+        File::create(&alice_filepath).expect("File::create");
+        File::create(&bob_filepath).expect("File::create");
+
+        let workspace = Workspace::new(tempdir.path());
+        let alice = workspace.path(&alice_filepath).expect("Workspace::path");
+        let bob = workspace.path(&bob_filepath).expect("Workspace::path");
+        let alice_metadata = alice.stat().expect("WorkspacePath::stat");
+        let bob_metadata = bob.stat().expect("WorkspacePath::stat");
+
+        let mut index =
+            Index::load_for_update(tempdir.path().join("index")).expect("Index::load_for_update");
+
+        index.add(
+            &alice,
+            "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
+            &alice_metadata,
+        );
+        index.add(
+            &bob,
+            "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
+            &bob_metadata,
+        );
+
+        fs::remove_file(&alice_filepath).expect("fs::remove_file");
+        fs::create_dir(&alice_filepath).expect("fs::create_dir");
+        File::create(&nested_alice_filepath).expect("File::create");
+
+        let nested = workspace
+            .path(&nested_alice_filepath)
+            .expect("Workspace::path");
+        let nested_metadata = nested.stat().expect("WorkspacePath::stat");
+        index.add(
+            &nested,
+            "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
+            &nested_metadata,
+        );
+
+        let index_paths = index.iter().map(|entry| &entry.path).collect::<Vec<_>>();
+        assert_eq!(index_paths, ["alice.txt/nested.txt", "bob.txt"]);
+        /*
+        let mut index_iter = index.iter();
+        let entry = index_iter.next().expect("Too few entries in index");
+        assert_eq!(entry.path, "alice.txt/nested.txt");
+        let entry = index_iter.next().expect("Too few entries in index");
+        assert_eq!(entry.path, "bob.txt");
+        assert!(index_iter.next().is_none());
+        */
     }
 }
