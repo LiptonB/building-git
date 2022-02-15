@@ -377,7 +377,35 @@ mod tests {
     use crate::workspace::Workspace;
 
     #[test]
-    fn can_roundtrip_index() {
+    fn can_add_file_to_index() {
+        let tempdir = tempdir().expect("tempdir");
+
+        let filepath = tempdir.path().join("testfile");
+        File::create(&filepath).expect("File::create");
+
+        {
+            let workspace = Workspace::new(tempdir.path());
+            let workspace_path = workspace.path(&filepath).expect("Workspace::path");
+            let metadata = workspace_path.stat().expect("WorkspacePath::stat");
+
+            let mut index = Index::load_for_update(tempdir.path().join("index"))
+                .expect("Index::load_for_update while empty");
+
+            index.add(
+                &workspace_path,
+                "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
+                &metadata,
+            );
+
+            let mut index_iter = index.iter();
+            let entry = index_iter.next().expect("No entries in loaded index");
+            assert_eq!(entry.path, "testfile");
+            assert!(index_iter.next().is_none());
+        }
+    }
+
+    #[test]
+    fn can_save_and_load_index() {
         let tempdir = tempdir().expect("tempdir");
 
         let filepath = tempdir.path().join("testfile");
@@ -402,8 +430,10 @@ mod tests {
         {
             let index = Index::load(tempdir.path().join("index"))
                 .expect("Index::load_for_update after write");
-            let entry = index.iter().next().expect("No entries in loaded index");
+            let mut index_iter = index.iter();
+            let entry = index_iter.next().expect("No entries in loaded index");
             assert_eq!(entry.path, "testfile");
+            assert!(index_iter.next().is_none());
         }
     }
 }
