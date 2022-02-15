@@ -135,13 +135,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
-/*
-fn main() {
-    let result = do_main();
-
-    if let Err(err) = result {
-
-    }
-}
-*/

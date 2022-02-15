@@ -189,46 +189,39 @@ impl Index {
         }
 
         let mut entries: BTreeMap<PathBuf, Entry> = BTreeMap::new();
-        let mut data = vec![0; Entry::ENTRY_MIN_SIZE];
-        tracing::debug!(bytes = data.len(), "About to read_exact from index");
-        indexfile.read_exact(&mut data)?;
+        let mut data = Vec::new();
 
         while entries.len() < count {
-            match parse_entry(&data) {
-                Ok((extra, entrydata)) => {
-                    if !extra.is_empty() {
-                        bail!("Programmer error: Unexpected extra data: {:?}", extra);
-                    }
+            data.resize(Entry::ENTRY_MIN_SIZE, 0);
+            tracing::debug!(
+                bytes = Entry::ENTRY_MIN_SIZE,
+                "About to read_exact min entry from index"
+            );
+            indexfile.read_exact(&mut data)?;
 
-                    let entry = Entry::load(entrydata);
-                    let path = PathBuf::from(&entry.path);
-                    entries.insert(path, entry);
+            loop {
+                match parse_entry(&data) {
+                    Ok((extra, entrydata)) => {
+                        if !extra.is_empty() {
+                            bail!("Programmer error: Unexpected extra data: {:?}", extra);
+                        }
 
-                    tracing::debug!(
-                        bytes = Entry::ENTRY_MIN_SIZE,
-                        "About to read another entry from index"
-                    );
-                    let amount = indexfile.read(&mut data[..Entry::ENTRY_MIN_SIZE])?;
-                    tracing::debug!(bytes = amount, "Read from index");
-                    if amount == 0 {
-                        bail!("Unexpected EOF");
+                        let entry = Entry::load(entrydata);
+                        let path = PathBuf::from(&entry.path);
+                        entries.insert(path, entry);
+                        break;
                     }
-                    data.resize(amount, 0);
-                }
-                Err(Err::Incomplete(_)) => {
-                    let current_len = data.len();
-                    data.resize(current_len + Entry::ENTRY_BLOCK, 0);
-                    tracing::debug!(
-                        bytes = Entry::ENTRY_BLOCK,
-                        "Incomplete, reading more from index"
-                    );
-                    let amount = indexfile.read(&mut data[current_len..])?;
-                    tracing::debug!(bytes = amount, "Read from index");
-                    if amount == 0 {
-                        bail!("Unexpected EOF");
+                    Err(Err::Incomplete(_)) => {
+                        let current_len = data.len();
+                        data.resize(current_len + Entry::ENTRY_BLOCK, 0);
+                        tracing::debug!(
+                            bytes = Entry::ENTRY_BLOCK,
+                            "Incomplete, reading more from index"
+                        );
+                        indexfile.read_exact(&mut data[current_len..])?;
                     }
+                    Err(_) => bail!("Index parse error"),
                 }
-                Err(_) => bail!("Index parse error"),
             }
         }
 
@@ -398,7 +391,11 @@ mod tests {
             let mut index = Index::load_for_update(tempdir.path().join("index"))
                 .expect("Index::load_for_update while empty");
 
-            index.add(&workspace_path, "ffffff", &metadata);
+            index.add(
+                &workspace_path,
+                "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
+                &metadata,
+            );
             index.write_updates().expect("Index::write_updates");
         }
 
