@@ -1,7 +1,7 @@
-use std::io::{Read, Error as IOError, Write};
+use std::io::{Error as IOError, Read, Write};
 use std::iter;
 
-use anyhow::{Error, Context};
+use anyhow::{Context, Error};
 use crypto::digest::Digest;
 
 pub struct ChecksummedFile<I, D: Digest> {
@@ -39,7 +39,9 @@ impl<I: Read, D: Digest> ChecksummedFile<I, D> {
         let computed = self.hash();
         let mut read: Vec<u8> = iter::repeat(0).take(computed.len()).collect();
         tracing::debug!(bytes = read.len(), "About to read from checksummed file");
-        self.inner.read_exact(&mut read).context("Reading checksum")?;
+        self.inner
+            .read_exact(&mut read)
+            .context("Reading checksum")?;
 
         Ok(computed == read)
     }
@@ -67,8 +69,8 @@ impl<I: Read, D: Digest> Read for ChecksummedFile<I, D> {
 #[cfg(test)]
 mod tests {
     use std::fs::File;
-    use std::path::PathBuf;
     use std::io::{Read, Write};
+    use std::path::PathBuf;
 
     use crypto::sha1::Sha1;
     use tempfile::{tempdir, TempDir};
@@ -76,16 +78,14 @@ mod tests {
     use super::ChecksummedFile;
 
     struct Fixture {
-        tempdir: TempDir
+        tempdir: TempDir,
     }
 
     impl Fixture {
         fn new() -> Self {
             let tempdir = tempdir().expect("tempdir");
 
-            Self {
-                tempdir
-            }
+            Self { tempdir }
         }
 
         fn get_filename(&self) -> PathBuf {
@@ -138,5 +138,5 @@ mod tests {
         file.read_exact(&mut data).expect("read_exact");
         assert_eq!(&data, b"test_contents");
         assert!(file.verify_checksum().expect("verify_checksum"));
-   }
+    }
 }

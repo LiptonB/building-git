@@ -40,20 +40,20 @@ pub struct Entry {
 }
 
 type EntryData<'a> = (
-        u32,
-        u32,
-        u32,
-        u32,
-        u32,
-        u32,
-        u32,
-        u32,
-        u32,
-        u32,
-        &'a[u8],
-        u16,
-        &'a[u8],
-    );
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    u32,
+    &'a [u8],
+    u16,
+    &'a [u8],
+);
 
 impl Index {
     const HEADER_SIZE: usize = 12;
@@ -167,12 +167,7 @@ impl Index {
             Err, IResult,
         };
 
-        fn parse_entry(
-            input: &[u8],
-        ) -> IResult<
-            &[u8],
-            EntryData,
-        > {
+        fn parse_entry(input: &[u8]) -> IResult<&[u8], EntryData> {
             terminated(
                 tuple((
                     be_u32,
@@ -209,7 +204,10 @@ impl Index {
                     let path = PathBuf::from(&entry.path);
                     entries.insert(path, entry);
 
-                    tracing::debug!(bytes = Entry::ENTRY_MIN_SIZE, "About to read another entry from index");
+                    tracing::debug!(
+                        bytes = Entry::ENTRY_MIN_SIZE,
+                        "About to read another entry from index"
+                    );
                     let amount = indexfile.read(&mut data[..Entry::ENTRY_MIN_SIZE])?;
                     tracing::debug!(bytes = amount, "Read from index");
                     if amount == 0 {
@@ -220,7 +218,10 @@ impl Index {
                 Err(Err::Incomplete(_)) => {
                     let current_len = data.len();
                     data.resize(current_len + Entry::ENTRY_BLOCK, 0);
-                    tracing::debug!(bytes = Entry::ENTRY_BLOCK, "Incomplete, reading more from index");
+                    tracing::debug!(
+                        bytes = Entry::ENTRY_BLOCK,
+                        "Incomplete, reading more from index"
+                    );
                     let amount = indexfile.read(&mut data[current_len..])?;
                     tracing::debug!(bytes = amount, "Read from index");
                     if amount == 0 {
@@ -295,9 +296,7 @@ impl Entry {
         }
     }
 
-    fn load(
-        loaded_data: EntryData,
-    ) -> Self {
+    fn load(loaded_data: EntryData) -> Self {
         let (
             ctime,
             ctime_nsec,
@@ -375,15 +374,14 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::fs::File;
 
-    use tempfile::{tempdir};
+    use tempfile::tempdir;
 
-    use crate::workspace::Workspace;
     use super::Index;
+    use crate::workspace::Workspace;
 
     #[test]
     fn can_roundtrip_index() {
@@ -397,14 +395,16 @@ mod tests {
             let workspace_path = workspace.path(&filepath).expect("Workspace::path");
             let metadata = workspace_path.stat().expect("WorkspacePath::stat");
 
-            let mut index = Index::load_for_update(tempdir.path().join("index")).expect("Index::load_for_update while empty");
+            let mut index = Index::load_for_update(tempdir.path().join("index"))
+                .expect("Index::load_for_update while empty");
 
             index.add(&workspace_path, "ffffff", &metadata);
             index.write_updates().expect("Index::write_updates");
         }
 
         {
-            let index = Index::load(tempdir.path().join("index")).expect("Index::load_for_update after write");
+            let index = Index::load(tempdir.path().join("index"))
+                .expect("Index::load_for_update after write");
             let entry = index.iter().next().expect("No entries in loaded index");
             assert_eq!(entry.path, "testfile");
         }
