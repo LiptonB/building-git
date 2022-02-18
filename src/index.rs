@@ -404,10 +404,8 @@ mod tests {
                 &metadata,
             );
 
-            let mut index_iter = index.iter();
-            let entry = index_iter.next().expect("No entries in index");
-            assert_eq!(entry.path, "testfile");
-            assert!(index_iter.next().is_none());
+            let index_paths = index.iter().map(|entry| &entry.path).collect::<Vec<_>>();
+            assert_eq!(index_paths, ["testfile"]);
         }
     }
 
@@ -437,10 +435,9 @@ mod tests {
         {
             let index = Index::load(tempdir.path().join("index"))
                 .expect("Index::load_for_update after write");
-            let mut index_iter = index.iter();
-            let entry = index_iter.next().expect("No entries in loaded index");
-            assert_eq!(entry.path, "testfile");
-            assert!(index_iter.next().is_none());
+
+            let index_paths = index.iter().map(|entry| &entry.path).collect::<Vec<_>>();
+            assert_eq!(index_paths, ["testfile"]);
         }
     }
 
@@ -491,13 +488,5 @@ mod tests {
 
         let index_paths = index.iter().map(|entry| &entry.path).collect::<Vec<_>>();
         assert_eq!(index_paths, ["alice.txt/nested.txt", "bob.txt"]);
-        /*
-        let mut index_iter = index.iter();
-        let entry = index_iter.next().expect("Too few entries in index");
-        assert_eq!(entry.path, "alice.txt/nested.txt");
-        let entry = index_iter.next().expect("Too few entries in index");
-        assert_eq!(entry.path, "bob.txt");
-        assert!(index_iter.next().is_none());
-        */
     }
 }
