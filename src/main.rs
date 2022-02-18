@@ -65,7 +65,7 @@ fn commit() -> Result<()> {
     let parent = refs.read_head()?;
     let name = env::var("GIT_AUTHOR_NAME").context("GIT_AUTHOR_NAME")?;
     let email = env::var("GIT_AUTHOR_EMAIL").context("GIT_AUTHOR_EMAIL")?;
-    let timestamp = OffsetDateTime::try_now_local().unwrap_or_else(|_| { OffsetDateTime::now_utc() });
+    let timestamp = OffsetDateTime::try_now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
     let author = Author::new(&name, &email, timestamp);
 
     let mut message = String::new();
@@ -107,11 +107,10 @@ fn add(paths: Vec<PathBuf>) -> Result<()> {
     for path in paths {
         for file in workspace.list_files(path)? {
             let data = file.read()?;
-            let metadata = file.stat()?;
 
             let mut blob = Blob::new(data);
             database.store(&mut blob)?;
-            index.add(&file, blob.oid(), &metadata);
+            index.add(&file, blob.oid())?;
         }
     }
 

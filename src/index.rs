@@ -84,11 +84,14 @@ impl Index {
         })
     }
 
-    pub fn add(&mut self, file: &WorkspacePath, oid: &str, metadata: &Metadata) {
-        let entry = Entry::new(file, oid, metadata);
+    pub fn add(&mut self, file: &WorkspacePath, oid: &str) -> Result<()> {
+        let metadata = file.stat()?;
+        let entry = Entry::new(file, oid, &metadata);
         self.discard_conflicts(&file);
         self.entries.insert(file.rel_path().to_owned(), entry);
         self.changed = true;
+
+        Ok(())
     }
 
     fn discard_conflicts(&mut self, path: &WorkspacePath) {
@@ -393,16 +396,13 @@ mod tests {
         {
             let workspace = Workspace::new(tempdir.path());
             let workspace_path = workspace.path(&filepath).expect("Workspace::path");
-            let metadata = workspace_path.stat().expect("WorkspacePath::stat");
 
             let mut index = Index::load_for_update(tempdir.path().join("index"))
                 .expect("Index::load_for_update");
 
-            index.add(
-                &workspace_path,
-                "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
-                &metadata,
-            );
+            index
+                .add(&workspace_path, "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+                .expect("Index::add");
 
             let index_paths = index.iter().map(|entry| &entry.path).collect::<Vec<_>>();
             assert_eq!(index_paths, ["testfile"]);
@@ -419,16 +419,13 @@ mod tests {
         {
             let workspace = Workspace::new(tempdir.path());
             let workspace_path = workspace.path(&filepath).expect("Workspace::path");
-            let metadata = workspace_path.stat().expect("WorkspacePath::stat");
 
             let mut index = Index::load_for_update(tempdir.path().join("index"))
                 .expect("Index::load_for_update while empty");
 
-            index.add(
-                &workspace_path,
-                "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
-                &metadata,
-            );
+            index
+                .add(&workspace_path, "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+                .expect("Index::add");
             index.write_updates().expect("Index::write_updates");
         }
 
@@ -455,22 +452,16 @@ mod tests {
         let workspace = Workspace::new(tempdir.path());
         let alice = workspace.path(&alice_filepath).expect("Workspace::path");
         let bob = workspace.path(&bob_filepath).expect("Workspace::path");
-        let alice_metadata = alice.stat().expect("WorkspacePath::stat");
-        let bob_metadata = bob.stat().expect("WorkspacePath::stat");
 
         let mut index =
             Index::load_for_update(tempdir.path().join("index")).expect("Index::load_for_update");
 
-        index.add(
-            &alice,
-            "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
-            &alice_metadata,
-        );
-        index.add(
-            &bob,
-            "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
-            &bob_metadata,
-        );
+        index
+            .add(&alice, "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+            .expect("Index::add");
+        index
+            .add(&bob, "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+            .expect("Index::add");
 
         fs::remove_file(&alice_filepath).expect("fs::remove_file");
         fs::create_dir(&alice_filepath).expect("fs::create_dir");
@@ -479,12 +470,9 @@ mod tests {
         let nested = workspace
             .path(&nested_alice_filepath)
             .expect("Workspace::path");
-        let nested_metadata = nested.stat().expect("WorkspacePath::stat");
-        index.add(
-            &nested,
-            "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15",
-            &nested_metadata,
-        );
+        index
+            .add(&nested, "f1d2d2f924e986ac86fdf7b36c94bcdf32beec15")
+            .expect("Index::add");
 
         let index_paths = index.iter().map(|entry| &entry.path).collect::<Vec<_>>();
         assert_eq!(index_paths, ["alice.txt/nested.txt", "bob.txt"]);
