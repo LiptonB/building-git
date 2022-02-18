@@ -86,8 +86,15 @@ impl Index {
 
     pub fn add(&mut self, file: &WorkspacePath, oid: &str, metadata: &Metadata) {
         let entry = Entry::new(file, oid, metadata);
+        self.discard_conflicts(&file);
         self.entries.insert(file.rel_path().to_owned(), entry);
         self.changed = true;
+    }
+
+    fn discard_conflicts(&mut self, path: &WorkspacePath) {
+        for parent in path.rel_path().ancestors() {
+            self.entries.remove(parent);
+        }
     }
 
     fn serialize_entries<'a, W: Write + 'a>(
