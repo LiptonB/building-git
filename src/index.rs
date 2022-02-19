@@ -1,12 +1,13 @@
 mod checksum;
 
 use std::cmp;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryInto;
+use std::default::Default;
 use std::fs::{File, Metadata};
 use std::io::{Read, Write};
 use std::iter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Result};
 use cookie_factory as cf;
@@ -18,6 +19,7 @@ use crate::workspace::*;
 
 pub struct Index {
     entries: BTreeMap<PathBuf, Entry>,
+    parents: HashMap<PathBuf, HashSet<PathBuf>>,
     file: Option<ChecksummedFile<Lockfile, Sha1>>,
     changed: bool,
 }
@@ -60,6 +62,15 @@ impl Index {
     const SIGNATURE: &'static [u8] = b"DIRC";
     const VERSION: u32 = 2;
 
+    fn new() -> Self {
+        Self {
+            entries: Default::default(),
+            parents: Default::default(),
+            file: None,
+            changed: false,
+        }
+    }
+
     pub fn load_for_update(path: PathBuf) -> Result<Self> {
         let lockfile =
             Lockfile::hold_for_update(path.clone())?.ok_or(anyhow!("Index file is locked"))?;
@@ -72,30 +83,46 @@ impl Index {
 
     #[tracing::instrument(name = "Index::load")]
     pub fn load(path: PathBuf) -> Result<Self> {
-        let entries = match File::open(&path) {
-            Ok(indexfile) => Self::load_entries(&indexfile)?,
-            Err(_) => BTreeMap::new(),
-        };
+        let mut index = Self::new();
 
-        Ok(Self {
-            entries,
-            file: None,
-            changed: false,
-        })
+        if let Ok(indexfile) = File::open(&path) {
+            let mut indexfile = ChecksummedFile::new(indexfile, Sha1::new());
+
+            let count = Self::read_header(&mut indexfile)?;
+            let entries = Self::read_entries(&mut indexfile, count)?;
+
+            if !indexfile.verify_checksum()? {
+                bail!("Checksum validation failed!");
+            }
+
+            for (path, entry) in entries.into_iter() {
+                index.store_entry(&path, entry);
+            }
+        }
+
+        Ok(index)
     }
 
     pub fn add(&mut self, file: &WorkspacePath, oid: &str) -> Result<()> {
         let metadata = file.stat()?;
         let entry = Entry::new(file, oid, &metadata);
-        self.discard_conflicts(&file);
-        self.entries.insert(file.rel_path().to_owned(), entry);
+        self.discard_conflicts(file.rel_path());
+        self.store_entry(file.rel_path(), entry);
         self.changed = true;
 
         Ok(())
     }
 
-    fn discard_conflicts(&mut self, path: &WorkspacePath) {
-        for parent in path.rel_path().ancestors() {
+    fn store_entry(&mut self, entry_path: &Path, entry: Entry) {
+        for path in entry_path.ancestors() {
+            let paths_for_parent = self.parents.entry(path.to_owned()).or_default();
+            paths_for_parent.insert(entry_path.to_owned());
+        }
+        self.entries.insert(entry_path.to_owned(), entry);
+    }
+
+    fn discard_conflicts(&mut self, path: &Path) {
+        for parent in path.ancestors() {
             self.entries.remove(parent);
         }
     }
@@ -111,19 +138,6 @@ impl Index {
             be_u32(entries.len().try_into().unwrap()),
             all(entries.values().map(Entry::serialize)),
         ))
-    }
-
-    fn load_entries<R: Read>(indexfile: R) -> Result<BTreeMap<PathBuf, Entry>> {
-        let mut indexfile = ChecksummedFile::new(indexfile, Sha1::new());
-
-        let count = Self::read_header(&mut indexfile)?;
-        let entries = Self::read_entries(&mut indexfile, count)?;
-
-        if !indexfile.verify_checksum()? {
-            bail!("Checksum validation failed!");
-        }
-
-        Ok(entries)
     }
 
     #[tracing::instrument(skip(indexfile))]
@@ -201,7 +215,7 @@ impl Index {
         let mut entries: BTreeMap<PathBuf, Entry> = BTreeMap::new();
         let mut data = Vec::new();
 
-        while entries.len() < count {
+        for _ in 0..count {
             data.resize(Entry::ENTRY_MIN_SIZE, 0);
             tracing::debug!(
                 bytes = Entry::ENTRY_MIN_SIZE,
