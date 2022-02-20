@@ -193,9 +193,8 @@ impl Index {
         }
 
         let mut data = [0; Self::HEADER_SIZE];
-        tracing::debug!(bytes = data.len(), "About to read from index");
-        indexfile.read(&mut data)?;
-        tracing::debug!(bytes = data.len(), "Read from index");
+        tracing::debug!(bytes = data.len(), "About to read_exact from index");
+        indexfile.read_exact(&mut data)?;
 
         let (extra, (signature, version, count)) =
             parse_header(&data).map_err(|e| anyhow!("{:?}", e))?;
