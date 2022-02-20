@@ -103,16 +103,18 @@ fn add(paths: Vec<PathBuf>) -> Result<()> {
     let database = Database::new(git_path.join("objects"));
     let mut index = Index::load_for_update(git_path.join("index"))?;
 
-    //index.load_for_update()?;
+    let files = paths
+        .iter()
+        .map(|path| workspace.list_files(path))
+        .collect::<Result<Vec<_>>>()?;
+    let files = files.iter().flatten();
 
-    for path in paths {
-        for file in workspace.list_files(path)? {
-            let data = file.read()?;
+    for file in files {
+        let data = file.read()?;
 
-            let mut blob = Blob::new(data);
-            database.store(&mut blob)?;
-            index.add(&file, blob.oid())?;
-        }
+        let mut blob = Blob::new(data);
+        database.store(&mut blob)?;
+        index.add(&file, blob.oid())?;
     }
 
     index.write_updates()?;
