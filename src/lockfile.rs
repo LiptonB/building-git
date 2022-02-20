@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Result};
 
+#[derive(Debug)]
 pub struct Lockfile {
     path: PathBuf,
     lock_path: PathBuf,
@@ -53,9 +54,7 @@ impl Write for Lockfile {
 
 impl Drop for Lockfile {
     fn drop(&mut self) {
-        fs::remove_file(&self.lock_path).unwrap_or_else(|_| panic!(
-            "Failed to remove lock file: {}",
-            self.lock_path.display()
-        ));
+        fs::remove_file(&self.lock_path)
+            .unwrap_or_else(|_| panic!("Failed to remove lock file: {}", self.lock_path.display()));
     }
 }

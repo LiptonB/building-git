@@ -3,9 +3,13 @@ use std::iter;
 
 use anyhow::{Context, Error};
 use crypto::digest::Digest;
+use derivative::Derivative;
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct ChecksummedFile<I, D: Digest> {
     inner: I,
+    #[derivative(Debug = "ignore")]
     hasher: D,
 }
 

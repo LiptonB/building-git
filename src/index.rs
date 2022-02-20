@@ -12,14 +12,18 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Result};
 use cookie_factory as cf;
 use crypto::sha1::Sha1;
+use derivative::Derivative;
 
 use self::checksum::*;
 use crate::lockfile::*;
 use crate::workspace::*;
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Index {
     entries: BTreeMap<PathBuf, Entry>,
     parents: HashMap<PathBuf, HashSet<PathBuf>>,
+    #[derivative(Debug = "ignore")]
     file: Option<ChecksummedFile<Lockfile, Sha1>>,
     changed: bool,
 }
@@ -103,6 +107,7 @@ impl Index {
         Ok(index)
     }
 
+    #[tracing::instrument]
     pub fn add(&mut self, file: &WorkspacePath, oid: &str) -> Result<()> {
         let metadata = file.stat()?;
         let entry = Entry::new(file, oid, &metadata);
@@ -113,18 +118,53 @@ impl Index {
         Ok(())
     }
 
+    #[tracing::instrument]
     fn store_entry(&mut self, entry_path: &Path, entry: Entry) {
         for path in entry_path.ancestors() {
             let paths_for_parent = self.parents.entry(path.to_owned()).or_default();
             paths_for_parent.insert(entry_path.to_owned());
         }
         self.entries.insert(entry_path.to_owned(), entry);
+        tracing::debug!(?entry_path, entries = ?self.entries, parents = ?self.parents, "entry stored");
     }
 
+    #[tracing::instrument]
+    fn remove_entry(&mut self, entry_path: &Path) {
+        if self.entries.remove(entry_path).is_some() {
+            for parent in entry_path.ancestors() {
+                if let Some(paths_for_parent) = self.parents.get_mut(parent) {
+                    paths_for_parent.remove(entry_path);
+                    if paths_for_parent.is_empty() {
+                        self.parents.remove(parent);
+                    }
+                }
+            }
+            tracing::debug!(
+                ?entry_path,
+                entries = ?self.entries,
+                parents = ?self.parents,
+                "entry removed and parents updated"
+            );
+        }
+    }
+
+    #[tracing::instrument]
+    fn remove_children(&mut self, entry_path: &Path) {
+        if let Some(children) = self.parents.get(entry_path) {
+            let children = children.clone();
+            for child in children {
+                self.remove_entry(&child);
+            }
+            tracing::debug!(?entry_path, entries = ?self.entries, "children removed");
+        }
+    }
+
+    #[tracing::instrument]
     fn discard_conflicts(&mut self, path: &Path) {
         for parent in path.ancestors() {
-            self.entries.remove(parent);
+            self.remove_entry(parent);
         }
+        self.remove_children(path);
     }
 
     fn serialize_entries<'a, W: Write + 'a>(
@@ -533,7 +573,7 @@ mod tests {
 
         // Assert
         let index_paths = index.iter().map(|entry| &entry.path).collect::<Vec<_>>();
-        assert_eq!(index_paths, ["alice.txt/nested.txt", "bob.txt"]);
+        assert_eq!(index_paths, ["alice.txt", "nested"]);
     }
 
     #[test]
@@ -582,6 +622,6 @@ mod tests {
 
         // Assert
         let index_paths = index.iter().map(|entry| &entry.path).collect::<Vec<_>>();
-        assert_eq!(index_paths, ["alice.txt/nested.txt", "bob.txt"]);
+        assert_eq!(index_paths, ["alice.txt", "nested"]);
     }
 }

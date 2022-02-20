@@ -2,6 +2,7 @@ mod database;
 mod index;
 mod lockfile;
 mod refs;
+mod telemetry;
 mod workspace;
 
 use std::env;
@@ -120,10 +121,7 @@ fn add(paths: Vec<PathBuf>) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
-    }
-    tracing_subscriber::fmt::init();
+    telemetry::init();
 
     let opt = Opt::from_args();
     match opt {
