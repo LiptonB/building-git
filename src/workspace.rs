@@ -86,12 +86,14 @@ impl WorkspacePath<'_> {
     }
 
     pub fn read(&self) -> Result<Vec<u8>> {
-        let data = fs::read(self.path())?;
+        let data = fs::read(self.path())
+            .with_context(|| format!("open('{:?}'): Permission denied", self.rel_path()))?;
         Ok(data)
     }
 
     pub fn stat(&self) -> Result<fs::Metadata> {
-        let metadata = fs::metadata(self.path())?;
+        let metadata = fs::metadata(self.path())
+            .with_context(|| format!("stat('{:?}'): Permission denied", self.rel_path()))?;
         Ok(metadata)
     }
 }
