@@ -2,6 +2,7 @@ mod database;
 mod index;
 mod lockfile;
 mod refs;
+mod repository;
 mod telemetry;
 mod workspace;
 
