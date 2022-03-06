@@ -12,8 +12,8 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
+use clap::{Parser, Subcommand};
 use rustc_serialize::hex::ToHex;
-use structopt::StructOpt;
 use time::OffsetDateTime;
 
 use crate::database::*;
@@ -21,10 +21,10 @@ use crate::index::*;
 use crate::refs::*;
 use crate::workspace::*;
 
-#[derive(StructOpt, Debug)]
-enum Opt {
+#[derive(Parser, Debug)]
+enum Cli {
     Init {
-        #[structopt(default_value = ".")]
+        #[clap(default_value = ".")]
         root: PathBuf,
     },
     Commit,
@@ -126,11 +126,11 @@ fn add(paths: Vec<PathBuf>) -> Result<()> {
 fn main() -> Result<()> {
     telemetry::init();
 
-    let opt = Opt::from_args();
+    let opt = Cli::parse();
     match opt {
-        Opt::Init { root } => init(&root)?,
-        Opt::Commit => commit()?,
-        Opt::Add { paths } => add(paths)?,
+        Cli::Init { root } => init(&root)?,
+        Cli::Commit => commit()?,
+        Cli::Add { paths } => add(paths)?,
     }
 
     Ok(())
