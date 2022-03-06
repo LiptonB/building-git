@@ -6,21 +6,19 @@ use anyhow::{anyhow, Context, Result};
 use rustc_serialize::hex::ToHex;
 use time::OffsetDateTime;
 
-use crate::database::{Author, Commit, Database, Object, Tree, TreeFile};
-use crate::index::Index;
-use crate::refs::Refs;
+use crate::database::{Author, Commit, Object, Tree, TreeFile};
+use crate::repository::Repository;
 
 #[derive(clap::Args, Debug)]
 pub struct Args {}
 
 pub fn execute(_args: Args) -> Result<()> {
     let root_path = fs::canonicalize(".")?;
-    let git_path = root_path.join(".git");
-    let db_path = git_path.join("objects");
+    let repo = Repository::new(root_path);
 
-    let index = Index::load(git_path.join("index"))?;
-    let refs = Refs::new(git_path);
-    let database = Database::new(&db_path);
+    let index = repo.index()?;
+    let refs = repo.refs();
+    let database = repo.database();
 
     let entries = index
         .iter()

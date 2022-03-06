@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 
@@ -7,12 +7,15 @@ use crate::index::Index;
 use crate::refs::Refs;
 use crate::workspace::Workspace;
 
-struct Repository {
+pub struct Repository {
     git_path: PathBuf,
-    database: Option<Database>,
 }
 
 impl Repository {
+    pub fn new(git_path: PathBuf) -> Self {
+        Self { git_path }
+    }
+
     pub fn database(&self) -> Database {
         let path = self.git_path.join("objects");
         Database::new(path)
@@ -20,6 +23,10 @@ impl Repository {
 
     pub fn index(&self) -> Result<Index> {
         Index::load(self.git_path.join("index"))
+    }
+
+    pub fn index_for_update(&self) -> Result<Index> {
+        Index::load_for_update(self.git_path.join("index"))
     }
 
     pub fn refs(&self) -> Refs {

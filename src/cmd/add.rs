@@ -3,9 +3,8 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use crate::database::{Blob, Database, Object};
-use crate::index::Index;
-use crate::workspace::Workspace;
+use crate::database::{Blob, Object};
+use crate::repository::Repository;
 
 #[derive(clap::Args, Debug)]
 pub struct Args {
@@ -14,11 +13,11 @@ pub struct Args {
 
 pub fn execute(args: Args) -> Result<()> {
     let root_path = fs::canonicalize(".")?;
-    let git_path = root_path.join(".git");
+    let repo = Repository::new(root_path);
 
-    let workspace = Workspace::new(root_path);
-    let database = Database::new(git_path.join("objects"));
-    let mut index = Index::load_for_update(git_path.join("index"))?;
+    let workspace = repo.workspace();
+    let database = repo.database();
+    let mut index = repo.index_for_update()?;
 
     let files = args
         .paths
